@@ -1,0 +1,205 @@
+import React, { useState, useEffect, useCallback } from 'react'
+import { Minus, Square, X, Copy } from 'lucide-react'
+import Sidebar from './components/Sidebar'
+import AccountSwitcher from './components/AccountSwitcher'
+import ChatView from './components/ChatView'
+import TaskView from './components/TaskView'
+import ScheduledList from './components/ScheduledList'
+import QRCodeModal from './components/QRCodeModal'
+import SearchOverlay from './components/SearchOverlay'
+
+export default function App() {
+  const [theme, setTheme] = useState('dark')
+  const [accounts, setAccounts] = useState([])
+  const [activeAccount, setActiveAccount] = useState(null)
+  const [activeView, setActiveView] = useState('chat') // chat, tasks, scheduled
+  const [activeContact, setActiveContact] = useState(null)
+  const [activeFolder, setActiveFolder] = useState(null)
+  const [showQRModal, setShowQRModal] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
+  const [isMaximized, setIsMaximized] = useState(false)
+
+  // Carica tema e accounts all'avvio
+  useEffect(() => {
+    async function init() {
+      const savedTheme = await window.api.getSetting('theme')
+      if (savedTheme) {
+        setTheme(savedTheme)
+        document.documentElement.setAttribute('data-theme', savedTheme)
+      }
+      const accs = await window.api.getAccounts()
+      // Filtra gli account "fantasma" (senza numero e non attivi) per la visualizzazione iniziale
+      const validAccs = accs.filter(a => a.phone_number || a.is_active)
+      setAccounts(validAccs)
+      
+      if (validAccs.length > 0) {
+        setActiveAccount(validAccs[0])
+        // Inizializza solo gli account che hanno già un numero (già associati)
+        accs.filter(a => a.phone_number).forEach(acc => {
+          window.api.initializeWhatsApp(acc.id).catch(err => console.error(err))
+        })
+      }
+    }
+    init()
+
+    // Shortcut Ctrl+K per ricerca
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setShowSearch(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Toggle tema
+  const toggleTheme = useCallback(async () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
+    document.documentElement.setAttribute('data-theme', newTheme)
+    await window.api.setSetting('theme', newTheme)
+  }, [theme])
+
+  // Window controls
+  const handleMinimize = () => window.api.minimize()
+  const handleMaximize = async () => {
+    window.api.maximize()
+    const max = await window.api.isMaximized()
+    setIsMaximized(max)
+  }
+  const handleClose = () => window.api.close()
+
+  // Account handlers
+  const handleAddAccount = () => setShowQRModal(true)
+  const handleSelectAccount = (account) => {
+    setActiveAccount(account)
+    setActiveContact(null)
+    setActiveFolder(null)
+  }
+  const handleDeleteAccount = async (id) => {
+    if (confirm('Sei sicuro di voler eliminare questo account?')) {
+      await window.api.deleteAccount(id)
+      setAccounts(prev => prev.filter(a => a.id !== id))
+      if (activeAccount?.id === id) {
+        setActiveAccount(null)
+      }
+    }
+  }
+
+  // Navigation handlers
+  const handleSelectContact = (contact) => {
+    setActiveContact(contact)
+    setActiveFolder(null)
+    setActiveView('chat')
+  }
+  const handleSelectFolder = (folder) => {
+    setActiveFolder(folder)
+    setActiveContact(null)
+  }
+  const handleNavigate = (view, options = {}) => {
+    setActiveView(view)
+    if (view === 'chat') {
+      if (options.contact) setActiveContact(options.contact)
+      if (options.folder) setActiveFolder(options.folder)
+      // options.messageId potrebbe essere usato in ChatView per scrollare
+    } else {
+      setActiveContact(null)
+      setActiveFolder(null)
+    }
+  }
+
+  // Renderizza la vista principale
+  const renderMainView = () => {
+    switch (activeView) {
+      case 'tasks':
+        return <TaskView />
+      case 'scheduled':
+        return <ScheduledList accountId={activeAccount?.id} />
+      case 'chat':
+      default:
+        if (activeContact) {
+          return <ChatView contact={activeContact} accountId={activeAccount?.id} />
+        }
+        return (
+          <div className="empty-state">
+            <div className="empty-state__icon">💬</div>
+            <div className="empty-state__title">MICH-ENGER</div>
+            <div className="empty-state__text">
+              Seleziona un contatto o un gruppo dalla sidebar per iniziare una conversazione.
+            </div>
+          </div>
+        )
+    }
+  }
+
+  return (
+    <>
+      {/* Titlebar personalizzata */}
+      <div className="titlebar">
+        <span className="titlebar__title">MICH-ENGER</span>
+        <div className="titlebar__controls">
+          <button className="titlebar__btn" onClick={handleMinimize} title="Riduci">
+            <Minus size={14} />
+          </button>
+          <button className="titlebar__btn" onClick={handleMaximize} title="Ingrandisci">
+            {isMaximized ? <Copy size={12} /> : <Square size={12} />}
+          </button>
+          <button className="titlebar__btn titlebar__btn--close" onClick={handleClose} title="Chiudi">
+            <X size={14} />
+          </button>
+        </div>
+      </div>
+
+      {/* Layout principale */}
+      <div className="app-layout">
+        {/* Barra account (colonna stretta sinistra) */}
+        <AccountSwitcher
+          accounts={accounts}
+          activeAccount={activeAccount}
+          onSelect={handleSelectAccount}
+          onAdd={handleAddAccount}
+          onDelete={handleDeleteAccount}
+          theme={theme}
+          onToggleTheme={toggleTheme}
+        />
+
+        {/* Sidebar */}
+        <Sidebar
+          accountId={activeAccount?.id}
+          activeContact={activeContact}
+          activeFolder={activeFolder}
+          activeView={activeView}
+          onSelectContact={handleSelectContact}
+          onSelectFolder={handleSelectFolder}
+          onNavigate={handleNavigate}
+        />
+
+        {/* Area principale */}
+        <div className="main-area">
+          {renderMainView()}
+        </div>
+      </div>
+
+      {/* QR Code Modal */}
+      {showQRModal && (
+        <QRCodeModal
+          onClose={() => setShowQRModal(false)}
+          onConnected={(account) => {
+            setAccounts(prev => [...prev, account])
+            setActiveAccount(account)
+            setShowQRModal(false)
+          }}
+        />
+      )}
+      {/* Search Overlay */}
+      {showSearch && (
+        <SearchOverlay
+          accountId={activeAccount?.id}
+          onClose={() => setShowSearch(false)}
+          onNavigate={handleNavigate}
+        />
+      )}
+    </>
+  )
+}

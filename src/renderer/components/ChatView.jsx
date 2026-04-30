@@ -1,0 +1,313 @@
+import React, { useState, useEffect, useRef } from 'react'
+import { Send, Paperclip, Image, Mic, Clock, MoreVertical, CheckSquare, User, Users, DownloadCloud, FolderPlus } from 'lucide-react'
+import TaskCreateModal from './TaskCreateModal'
+
+export default function ChatView({ contact, accountId }) {
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [showTaskModal, setShowTaskModal] = useState(false)
+  const [selectedMsgForTask, setSelectedMsgForTask] = useState(null)
+  const [previewImage, setPreviewImage] = useState(null)
+  const [showFolderModal, setShowFolderModal] = useState(false)
+  const [folders, setFolders] = useState([])
+  const chatEndRef = useRef(null)
+  const textareaRef = useRef(null)
+
+  // Carica messaggi
+  useEffect(() => {
+    if (!contact?.id) return
+    async function load() {
+      setLoading(true)
+      const msgs = await window.api.getMessages(contact.id, 100, 0)
+      setMessages(msgs.reverse())
+      setLoading(false)
+      
+      // Segna come letto all'apertura
+      window.api.markAsRead(accountId, contact.id).catch(() => {})
+    }
+    load()
+
+    const removeMsgListener = window.api.onWhatsAppEvent('wa:message', ({ accountId: msgAccountId, message }) => {
+      if (msgAccountId === accountId && message.contact_id === contact.id) {
+        setMessages(prev => {
+          if (prev.some(m => m.wa_message_id === message.wa_message_id)) return prev
+          return [...prev, message]
+        })
+      }
+    })
+
+    const removeHistoryListener = window.api.onWhatsAppEvent('wa:history-synced', ({ accountId: msgAccountId }) => {
+      if (msgAccountId === accountId) load()
+    })
+
+    return () => {
+      removeMsgListener?.()
+      removeHistoryListener?.()
+    }
+  }, [contact?.id, accountId])
+
+  // Scroll in fondo
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  // Auto-resize textarea
+  const handleInputChange = (e) => {
+    setInput(e.target.value)
+    const ta = textareaRef.current
+    if (ta) {
+      ta.style.height = 'auto'
+      ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
+    }
+  }
+
+  // Invia messaggio
+  const handleSend = async () => {
+    if (!input.trim()) return
+    
+    // Invia tramite WhatsApp
+    try {
+      await window.api.sendMessage(accountId, contact.id, input.trim())
+      setInput('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    } catch (err) {
+      console.error('Errore invio:', err)
+      alert('Errore invio messaggio: riprova tra qualche istante.')
+    }
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const formatTime = (ts) => {
+    try {
+      const d = new Date(ts)
+      return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+    } catch { return '' }
+  }
+
+  const formatDate = (ts) => {
+    try {
+      const d = new Date(ts)
+      const today = new Date()
+      if (d.toDateString() === today.toDateString()) return 'Oggi'
+      const yesterday = new Date(today)
+      yesterday.setDate(yesterday.getDate() - 1)
+      if (d.toDateString() === yesterday.toDateString()) return 'Ieri'
+      return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
+    } catch { return '' }
+  }
+
+  // Raggruppa messaggi per data
+  let lastDate = ''
+
+  return (
+    <>
+      {/* Header chat */}
+      <div className="main-header">
+        <div className="main-header__info">
+          <div className="main-header__avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {contact.profile_pic_path ? (
+              <img src={`file:///${contact.profile_pic_path.replace(/\\/g, '/')}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              contact.is_group ? <Users size={18} /> : <User size={18} />
+            )}
+          </div>
+          <div>
+            <div className="main-header__name">{contact.name || contact.push_name || contact.phone_number}</div>
+            <div className="main-header__status">
+              {contact.is_group ? 'Gruppo' : contact.phone_number || 'Contatto'}
+            </div>
+          </div>
+        </div>
+        <div className="main-header__actions" style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            className="btn--icon" 
+            onClick={async () => {
+              if (window.confirm(`Vuoi scaricare TUTTA la cronologia di ${contact.name || contact.phone_number}? Potrebbe richiedere del tempo.`)) {
+                setLoading(true)
+                const res = await window.api.syncChatHistory(accountId, contact.id)
+                if (!res || !res.success) alert('Errore: ' + (res?.error || 'Sconosciuto'))
+                setLoading(false)
+              }
+            }}
+            title="Scarica cronologia completa"
+          >
+            <DownloadCloud size={18} />
+          </button>
+          <div style={{ position: 'relative' }}>
+            <button 
+              className="btn--icon" 
+              title="Aggiungi a Cartella"
+              onClick={async () => {
+                const f = await window.api.getFolders();
+                setFolders(f);
+                setShowFolderModal(!showFolderModal);
+              }}
+            >
+              <FolderPlus size={18} />
+            </button>
+            {showFolderModal && (
+              <div style={{ position: 'absolute', right: 0, top: 30, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, zIndex: 100, minWidth: 150, boxShadow: 'var(--shadow-md)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, padding: '0 8px' }}>SELEZIONA CARTELLA</div>
+                {folders.length === 0 ? (
+                  <div style={{ padding: '4px 8px', fontSize: 12, color: 'var(--text-muted)' }}>Nessuna cartella</div>
+                ) : (
+                  folders.map(f => (
+                    <button 
+                      key={f.id} 
+                      onClick={async () => {
+                        await window.api.addFolderMember(f.id, contact.id);
+                        setShowFolderModal(false);
+                        alert('Aggiunto alla cartella!');
+                      }}
+                      style={{ width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: 4, fontSize: 13 }}
+                    >
+                      {f.name}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+          <button className="btn--icon" title="Altre opzioni">
+            <MoreVertical size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Area messaggi */}
+      <div className="chat-area">
+        {loading && (
+          <div className="empty-state">
+            <div className="empty-state__text">Caricamento messaggi...</div>
+          </div>
+        )}
+        {!loading && messages.length === 0 && (
+          <div className="empty-state">
+            <div className="empty-state__icon">💬</div>
+            <div className="empty-state__text">Nessun messaggio ancora. Inizia la conversazione!</div>
+          </div>
+        )}
+        {messages.map((msg) => {
+          const msgDate = formatDate(msg.timestamp)
+          let showDateSep = false
+          if (msgDate !== lastDate) { showDateSep = true; lastDate = msgDate }
+
+          return (
+            <React.Fragment key={msg.id}>
+              {showDateSep && (
+                <div style={{ textAlign: 'center', margin: '16px 0 8px', fontSize: 12, color: 'var(--text-muted)' }}>
+                  <span style={{ background: 'var(--bg-card)', padding: '4px 14px', borderRadius: 12 }}>{msgDate}</span>
+                </div>
+              )}
+              <div className={`message ${msg.is_from_me ? 'message--me' : 'message--other'}`}>
+                <div className="message__bubble">
+                  {(msg.media_type === 'image' || msg.media_type === 'sticker') && msg.media_path && (
+                    <div style={{ marginBottom: 4, borderRadius: 8, overflow: 'hidden' }}>
+                      <img 
+                        src={`file:///${msg.media_path.replace(/\\/g, '/')}`} 
+                        alt="Media" 
+                        style={{ maxWidth: msg.media_type === 'sticker' ? 140 : '100%', display: 'block', cursor: 'pointer' }} 
+                        onClick={() => setPreviewImage(`file:///${msg.media_path.replace(/\\/g, '/')}`)}
+                      />
+                    </div>
+                  )}
+                  {msg.media_type !== 'text' && msg.media_type !== 'image' && msg.media_type !== 'sticker' && (
+                    <div 
+                      onClick={() => msg.media_path && window.api.openFile(msg.media_path)}
+                      style={{ 
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', 
+                        background: 'rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 4, fontSize: 13, cursor: 'pointer' 
+                      }}
+                    >
+                      <Paperclip size={14} />
+                      <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {msg.media_filename || `Scarica ${msg.media_type}`}
+                      </span>
+                    </div>
+                  )}
+                  <div style={{ wordBreak: 'break-word' }}>{msg.body}</div>
+                  <div className="message__actions">
+                    <button
+                      className="message__action-btn"
+                      title="Converti in Task"
+                      onClick={() => {
+                        setSelectedMsgForTask({
+                          title: msg.body.substring(0, 50) + (msg.body.length > 50 ? '...' : ''),
+                          description: msg.body,
+                          source_message_id: msg.wa_message_id
+                        })
+                        setShowTaskModal(true)
+                      }}
+                    >
+                      <CheckSquare size={14} />
+                    </button>
+                  </div>
+                </div>
+                <div className="message__time">
+                  {msg.sender_name && <span style={{ marginRight: 6, fontWeight: 600, color: 'var(--accent)' }}>{msg.sender_name}</span>}
+                  {formatTime(msg.timestamp)}
+                </div>
+              </div>
+            </React.Fragment>
+          )
+        })}
+        <div ref={chatEndRef} />
+      </div>
+
+      {/* Input messaggio */}
+      <div className="chat-input-area">
+        <div className="chat-input-actions">
+          <button className="chat-input-btn" title="Allegato"><Paperclip size={18} /></button>
+          <button className="chat-input-btn" title="Immagine"><Image size={18} /></button>
+          <button className="chat-input-btn" title="Audio"><Mic size={18} /></button>
+        </div>
+        <div className="chat-input-wrapper">
+          <textarea
+            ref={textareaRef}
+            className="chat-input"
+            placeholder="Scrivi un messaggio..."
+            value={input}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            rows={1}
+          />
+        </div>
+        <button className="chat-input-btn" title="Programma invio"><Clock size={18} /></button>
+        <button className="chat-send-btn" onClick={handleSend} title="Invia">
+          <Send size={18} />
+        </button>
+      </div>
+
+      {showTaskModal && (
+        <TaskCreateModal
+          initialData={selectedMsgForTask}
+          onClose={() => setShowTaskModal(false)}
+          onCreated={() => {
+            // Potrebbe mostrare un toast qui
+            setShowTaskModal(false)
+          }}
+        />
+      )}
+
+      {/* Modal Anteprima Immagine */}
+      {previewImage && (
+        <div className="modal-overlay" style={{ zIndex: 2000, background: 'rgba(0,0,0,0.9)' }} onClick={() => setPreviewImage(null)}>
+          <div style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh' }}>
+            <img src={previewImage} alt="Preview" style={{ maxWidth: '100%', maxHeight: '90vh', borderRadius: 8 }} />
+            <button 
+              onClick={() => setPreviewImage(null)}
+              style={{ position: 'absolute', top: -40, right: 0, color: 'white', background: 'none', border: 'none', fontSize: 24, cursor: 'pointer' }}
+            >✕</button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
