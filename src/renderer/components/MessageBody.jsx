@@ -35,7 +35,10 @@ export default function MessageBody({ body, accountId, isGroup }) {
     // Risolvi i phone_numbers a nomi
     async function resolve() {
       try {
-        const map = await window.api.resolvePhoneNumbers(accountId, Array.from(phoneNumbers))
+        const numbersArray = Array.from(phoneNumbers)
+        console.log('[MessageBody] Risolvendo numeri:', numbersArray)
+        const map = await window.api.resolvePhoneNumbers(accountId, numbersArray)
+        console.log('[MessageBody] Map risolto:', map)
         renderWithResolvedMentions(body, map)
       } catch (err) {
         console.error('Errore resolve phone numbers:', err)

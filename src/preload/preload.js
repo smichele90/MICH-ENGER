@@ -39,6 +39,7 @@ contextBridge.exposeInMainWorld('api', {
   getMessages: (contactId, limit, offset) => ipcRenderer.invoke('messages:getByContact', contactId, limit, offset),
   insertMessage: (data) => ipcRenderer.invoke('messages:insert', data),
   searchMessages: (accountId, query) => ipcRenderer.invoke('messages:search', accountId, query),
+  resolvePhoneNumbers: (accountId, phoneNumbers) => ipcRenderer.invoke('messages:resolvePhoneNumbers', accountId, phoneNumbers),
 
   // Scheduled messages
   getScheduled: (accountId) => ipcRenderer.invoke('scheduled:getAll', accountId),

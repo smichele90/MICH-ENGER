@@ -130,15 +130,37 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     const map = {}
     if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) return map
     
+    console.log(`[IPC] resolvePhoneNumbers accountId=${accountId}, numeri=${phoneNumbers.join(',')}`)
+    
     for (const phoneNum of phoneNumbers) {
       if (map[phoneNum]) continue // già risolto
-      const contact = db.prepare('SELECT name, push_name, phone_number FROM contacts WHERE account_id = ? AND phone_number = ?')
+      
+      let contact = null
+      
+      // Prova 1: match esatto su phone_number
+      contact = db.prepare('SELECT name, push_name, phone_number, whatsapp_id FROM contacts WHERE account_id = ? AND phone_number = ?')
         .get(accountId, phoneNum)
+      
+      // Prova 2: il numero potrebbe essere un WhatsApp ID puro, cerca in whatsapp_id strippando @c.us
+      if (!contact) {
+        contact = db.prepare('SELECT name, push_name, phone_number, whatsapp_id FROM contacts WHERE account_id = ? AND whatsapp_id LIKE ?')
+          .get(accountId, `${phoneNum}@%`)
+      }
+      
+      // Prova 3: match dopo stripping prefissi (+ e 00)
+      if (!contact) {
+        const stripped = phoneNum.replace(/^(\+|00)/, '')
+        contact = db.prepare(`SELECT name, push_name, phone_number, whatsapp_id FROM contacts WHERE account_id = ? AND REPLACE(REPLACE(phone_number, '+', ''), '00', '') = ?`)
+          .get(accountId, stripped)
+      }
+      
       if (contact) {
-        // Priorità: name > push_name > phone_number
-        map[phoneNum] = contact.name || contact.push_name || contact.phone_number || phoneNum
+        // Priorità: name > push_name > phone_number > whatsapp_id
+        map[phoneNum] = contact.name || contact.push_name || contact.phone_number || contact.whatsapp_id.split('@')[0] || phoneNum
+        console.log(`[IPC]   ${phoneNum} → ${map[phoneNum]} (trovato in whatsapp_id: ${contact.whatsapp_id})`)
       } else {
         map[phoneNum] = phoneNum // fallback: numero stesso
+        console.log(`[IPC]   ${phoneNum} → ${phoneNum} (NOT FOUND in DB)`)
       }
     }
     return map
