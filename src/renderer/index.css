@@ -288,6 +288,81 @@ body {
 .main-header__status { font-size: 12px; color: var(--text-secondary); }
 .main-header__actions { display: flex; gap: 4px; }
 
+.folder-members-panel {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+.folder-members {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.folder-member-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+}
+.folder-member-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+.folder-member-row__avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.folder-member-row__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.folder-member-row__avatar-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+.folder-member-row__info {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.folder-member-row__name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-member-row__meta {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder-member-row__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 /* Chat messages area */
 .chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 4px; }
 

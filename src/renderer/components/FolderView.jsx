@@ -49,7 +49,7 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
         </div>
       </div>
 
-      <div style={{ flex: 1, padding: 20, overflowY: 'auto' }}>
+      <div className="folder-members-panel">
         {members.length === 0 ? (
           <div className="empty-state">
             <Folder size={48} color="var(--text-muted)" style={{ opacity: 0.3 }} />
@@ -62,56 +62,45 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
             </button>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 10 }}>
+          <div className="folder-members">
             {members.map(c => (
-              <div key={c.id}
-                onClick={() => onSelectContact?.(c)}
-                style={{
-                  background: 'var(--bg-card)', border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius-md)', padding: 12, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 10, transition: 'var(--transition)'
-                }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
-              >
-                <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'var(--accent-light)', color: 'var(--accent)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  overflow: 'hidden'
-                }}>
+              <div key={c.id} className="folder-member-row" onClick={() => onSelectContact?.(c)}>
+                <div className="folder-member-row__avatar">
                   {(c.profile_pic_path || c.profile_pic_url) ? (
                     <>
-                      <img src={c.profile_pic_path ? `file:///${c.profile_pic_path.replace(/\\/g, '/')}` : c.profile_pic_url} alt="" onError={(e) => {
-                        if (c.profile_pic_path && c.profile_pic_url && e.target.src.startsWith('file:///')) {
-                          e.target.src = c.profile_pic_url
-                          return
-                        }
-                        e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'
-                      }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                      <img
+                        src={c.profile_pic_path ? `file:///${c.profile_pic_path.replace(/\\/g, '/')}` : c.profile_pic_url}
+                        alt=""
+                        onError={(e) => {
+                          if (c.profile_pic_path && c.profile_pic_url && e.target.src.startsWith('file:///')) {
+                            e.target.src = c.profile_pic_url
+                            return
+                          }
+                          e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'
+                        }}
+                      />
+                      <div className="folder-member-row__avatar-fallback">
                         {c.is_group ? <Users size={16} /> : <User size={16} />}
                       </div>
                     </>
                   ) : (
-                    c.is_group ? <Users size={16} /> : <User size={16} />
+                    <div className="folder-member-row__avatar-fallback">
+                      {c.is_group ? <Users size={16} /> : <User size={16} />}
+                    </div>
                   )}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {c.name || c.push_name || c.phone_number}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    {c.is_group ? 'Gruppo' : (c.phone_number || '—')}
-                  </div>
+                <div className="folder-member-row__info">
+                  <div className="folder-member-row__name">{c.name || c.push_name || c.phone_number}</div>
+                  <div className="folder-member-row__meta">{c.is_group ? 'Gruppo' : (c.phone_number || 'Contatto')}</div>
                 </div>
-                <button className="btn--icon" title="Apri chat"
-                  onClick={(e) => { e.stopPropagation(); onSelectContact?.(c) }}>
-                  <MessageSquare size={14} />
-                </button>
-                <button className="btn--icon" title="Rimuovi dalla cartella" onClick={(e) => handleRemove(c.id, e)}>
-                  <Trash2 size={14} />
-                </button>
+                <div className="folder-member-row__actions">
+                  <button className="btn--icon" title="Apri chat" onClick={(e) => { e.stopPropagation(); onSelectContact?.(c) }}>
+                    <MessageSquare size={14} />
+                  </button>
+                  <button className="btn--icon" title="Rimuovi dalla cartella" onClick={(e) => handleRemove(c.id, e)}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
