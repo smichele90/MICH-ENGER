@@ -70,6 +70,21 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
     ? groups.filter(g => g.name?.toLowerCase().includes(searchQuery.toLowerCase()))
     : groups
 
+  // CRONOLOGIA: unione di contatti + gruppi con messaggi, ordinati per ultima attività
+  // (come WhatsApp Web). Filtra per searchQuery se presente.
+  const recentItems = React.useMemo(() => {
+    const all = [...contacts, ...groups]
+      .filter(c => c.last_message_at)
+      .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))
+    if (!searchQuery) return all
+    const q = searchQuery.toLowerCase()
+    return all.filter(c =>
+      c.name?.toLowerCase().includes(q) ||
+      c.push_name?.toLowerCase().includes(q) ||
+      c.phone_number?.includes(searchQuery)
+    )
+  }, [contacts, groups, searchQuery])
+
   // Costruisci albero cartelle
   const buildTree = useCallback((items, parentId = null) => {
     return items
@@ -225,7 +240,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
           </div>
           
           <div className="sidebar-items">
-            {(sidebarTab === 'recent' ? contacts.filter(c => c.last_message_at) : (sidebarTab === 'contacts' ? filteredContacts : filteredGroups)).map(item => (
+            {(sidebarTab === 'recent' ? recentItems : (sidebarTab === 'contacts' ? filteredContacts : filteredGroups)).map(item => (
               <div
                 key={item.id}
                 className={`sidebar-item ${activeContact?.id === item.id ? 'sidebar-item--active' : ''}`}
