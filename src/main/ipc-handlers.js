@@ -66,11 +66,11 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
       .all(accountId, `%${query}%`, `%${query}%`, `%${query}%`)
   })
   ipcMain.handle('contacts:upsert', (_, data) => {
-    const result = db.prepare(`INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, profile_pic_path, is_group)
-      VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
+    const result = db.prepare(`INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, profile_pic_path, profile_pic_url, is_group)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
       name=excluded.name, push_name=excluded.push_name, phone_number=excluded.phone_number,
-      profile_pic_path=excluded.profile_pic_path, last_synced_at=datetime('now')`)
-      .run(data.account_id, data.whatsapp_id, data.name || '', data.push_name || '', data.phone_number || '', data.profile_pic_path || null, data.is_group ? 1 : 0)
+      profile_pic_path=excluded.profile_pic_path, profile_pic_url=excluded.profile_pic_url, last_synced_at=datetime('now')`)
+      .run(data.account_id, data.whatsapp_id, data.name || '', data.push_name || '', data.phone_number || '', data.profile_pic_path || null, data.profile_pic_url || null, data.is_group ? 1 : 0)
     return { id: result.lastInsertRowid }
   })
   ipcMain.handle('contacts:updateUnread', (_, contactId, count) => {

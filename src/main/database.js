@@ -21,6 +21,7 @@ function initDatabase() {
   // Metadati media (popolati dal sync, usati dal renderer per placeholder stile WA Web)
   try { db.prepare('ALTER TABLE messages ADD COLUMN wa_serialized_id TEXT').run() } catch (e) {}
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_thumb TEXT').run() } catch (e) {}        // base64 dataURL low-res
+  try { db.prepare('ALTER TABLE contacts ADD COLUMN profile_pic_url TEXT').run() } catch (e) {}
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_duration INTEGER').run() } catch (e) {} // secondi (audio/video)
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_size INTEGER').run() } catch (e) {}    // byte
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_width INTEGER').run() } catch (e) {}
@@ -51,6 +52,7 @@ function createTables() {
       push_name TEXT DEFAULT '',
       phone_number TEXT DEFAULT '',
       profile_pic_path TEXT,
+      profile_pic_url TEXT,
       is_group INTEGER DEFAULT 0,
       is_muted INTEGER DEFAULT 0,
       unread_count INTEGER DEFAULT 0,

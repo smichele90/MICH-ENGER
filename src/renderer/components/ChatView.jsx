@@ -132,8 +132,19 @@ export default function ChatView({ contact, accountId }) {
       <div className="main-header">
         <div className="main-header__info">
           <div className="main-header__avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {contact.profile_pic_path ? (
-              <img src={`file:///${contact.profile_pic_path.replace(/\\/g, '/')}`} alt="" onError={(e) => { e.target.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            {(contact.profile_pic_path || contact.profile_pic_url) ? (
+              <>
+                <img src={contact.profile_pic_path ? `file:///${contact.profile_pic_path.replace(/\\/g, '/')}` : contact.profile_pic_url} alt="" onError={(e) => {
+                  if (contact.profile_pic_path && contact.profile_pic_url && e.target.src.startsWith('file:///')) {
+                    e.target.src = contact.profile_pic_url
+                    return
+                  }
+                  e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'
+                }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                  {contact.is_group ? <Users size={18} /> : <User size={18} />}
+                </div>
+              </>
             ) : (
               contact.is_group ? <Users size={18} /> : <User size={18} />
             )}

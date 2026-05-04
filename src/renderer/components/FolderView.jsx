@@ -80,9 +80,22 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   overflow: 'hidden'
                 }}>
-                  {c.profile_pic_path
-                    ? <img src={`file:///${c.profile_pic_path.replace(/\\/g, '/')}`} alt="" onError={(e) => { e.target.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : (c.is_group ? <Users size={16} /> : <User size={16} />)}
+                  {(c.profile_pic_path || c.profile_pic_url) ? (
+                    <>
+                      <img src={c.profile_pic_path ? `file:///${c.profile_pic_path.replace(/\\/g, '/')}` : c.profile_pic_url} alt="" onError={(e) => {
+                        if (c.profile_pic_path && c.profile_pic_url && e.target.src.startsWith('file:///')) {
+                          e.target.src = c.profile_pic_url
+                          return
+                        }
+                        e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'
+                      }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                        {c.is_group ? <Users size={16} /> : <User size={16} />}
+                      </div>
+                    </>
+                  ) : (
+                    c.is_group ? <Users size={16} /> : <User size={16} />
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

@@ -391,13 +391,14 @@ class WhatsAppManager {
     }
 
     const upsertContact = this.db.prepare(`
-      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, profile_pic_path, is_group)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, profile_pic_path, profile_pic_url, is_group)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
         name = CASE WHEN excluded.name != '' THEN excluded.name ELSE contacts.name END,
         push_name = CASE WHEN excluded.push_name != '' THEN excluded.push_name ELSE contacts.push_name END,
         phone_number = CASE WHEN excluded.phone_number != '' THEN excluded.phone_number ELSE contacts.phone_number END,
         profile_pic_path = COALESCE(excluded.profile_pic_path, contacts.profile_pic_path),
+        profile_pic_url = COALESCE(excluded.profile_pic_url, contacts.profile_pic_url),
         is_group = excluded.is_group
     `)
 
@@ -411,6 +412,7 @@ class WhatsAppManager {
 
       // Avatar: scaricalo solo se non lo abbiamo già (lazy + validazione magic bytes)
       let localAvatarPath = null
+      let profilePicUrl = null
       const filename = `${waId.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`
       const fullPath = path.join(avatarDir, filename)
       if (fs.existsSync(fullPath)) {
@@ -424,27 +426,26 @@ class WhatsAppManager {
           }
         } catch { /* ignora */ }
       }
-      if (!localAvatarPath) {
-        try {
-          const url = await contact.getProfilePicUrl()
-          if (url) {
-            const response = await fetch(url)
-            if (response.ok) {
-              const buffer = Buffer.from(await response.arrayBuffer())
-              if (buffer.length > 100 && this.isValidImageBuffer(buffer)) {
-                fs.writeFileSync(fullPath, buffer)
-                localAvatarPath = fullPath
-              }
+      try {
+        const url = await contact.getProfilePicUrl()
+        if (url) profilePicUrl = url
+        if (!localAvatarPath && url) {
+          const response = await fetch(url)
+          if (response.ok) {
+            const buffer = Buffer.from(await response.arrayBuffer())
+            if (buffer.length > 100 && this.isValidImageBuffer(buffer)) {
+              fs.writeFileSync(fullPath, buffer)
+              localAvatarPath = fullPath
             }
           }
-        } catch { /* niente avatar, ok */ }
-      }
+        }
+      } catch { /* niente avatar, ok */ }
 
       try {
         upsertContact.run(
           accountId, waId,
           contact.name || '', contact.pushname || '', contact.number || '',
-          localAvatarPath, contact.isGroup ? 1 : 0
+          localAvatarPath, profilePicUrl, contact.isGroup ? 1 : 0
         )
       } catch (err) {
         console.error('[WA] upsertContact error:', err.message)
