@@ -1,6 +1,6 @@
 const { app, BrowserWindow, ipcMain, nativeTheme, protocol } = require('electron')
 const path = require('path')
-const { initDatabase, dedupeContacts } = require('./database')
+const { initDatabase, dedupeContacts, cleanSystemContacts } = require('./database')
 const { registerIpcHandlers } = require('./ipc-handlers')
 const { WhatsAppManager } = require('./whatsapp')
 const { Scheduler } = require('./scheduler')
@@ -95,6 +95,12 @@ app.whenReady().then(() => {
     const { merged } = dedupeContacts()
     if (merged > 0) console.log(`[DB] Dedupe: uniti ${merged} contatti duplicati`)
   } catch (e) { console.error('[DB] dedupe error:', e) }
+
+  // Pulizia status broadcast e altri contatti di sistema
+  try {
+    const { removed } = cleanSystemContacts()
+    if (removed > 0) console.log(`[DB] Rimossi ${removed} contatti di sistema (status broadcast, ecc.)`)
+  } catch (e) { console.error('[DB] clean system contacts error:', e) }
 
   // Crea finestra principale
   const window = createWindow()

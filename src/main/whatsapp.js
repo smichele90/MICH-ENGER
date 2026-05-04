@@ -42,6 +42,18 @@ class WhatsAppManager {
     try { return String(id) } catch { return null }
   }
 
+  // Filtra le entità "di sistema" che NON sono vere conversazioni:
+  //  - status@broadcast (gli stati/storie di tutti i contatti)
+  //  - 0@c.us (notifiche WhatsApp ufficiali in alcuni casi)
+  //  - liste broadcast (suffisso @broadcast)
+  isSystemChat(waId) {
+    if (!waId || typeof waId !== 'string') return true
+    if (waId === 'status@broadcast') return true
+    if (waId === '0@c.us') return true
+    if (waId.endsWith('@broadcast') && waId !== 'status@broadcast') return true
+    return false
+  }
+
   async autoInitializeAccounts() {
     const activeAccounts = this.db.prepare(
       "SELECT id FROM accounts WHERE phone_number IS NOT NULL AND phone_number != ''"
@@ -349,7 +361,7 @@ class WhatsAppManager {
     let processed = 0
     for (const chat of chats) {
       const waId = this.toIdString(chat.id)
-      if (!waId) continue
+      if (!waId || this.isSystemChat(waId)) continue
       try {
         const lastTs = chat.lastMessage ? new Date(chat.lastMessage.timestamp * 1000).toISOString() : null
         upsertChat.run(accountId, waId, chat.name || '', '', chat.isGroup ? 1 : 0, chat.unreadCount || 0, lastTs)
@@ -395,22 +407,35 @@ class WhatsAppManager {
     for (const contact of waContacts) {
       if (!(contact.isMyContact || contact.isGroup)) continue
       const waId = this.toIdString(contact.id)
-      if (!waId) continue
+      if (!waId || this.isSystemChat(waId)) continue
 
-      // Avatar: scaricalo solo se non lo abbiamo già (lazy)
+      // Avatar: scaricalo solo se non lo abbiamo già (lazy + validazione magic bytes)
       let localAvatarPath = null
       const filename = `${waId.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`
       const fullPath = path.join(avatarDir, filename)
       if (fs.existsSync(fullPath)) {
-        localAvatarPath = fullPath
-      } else {
+        // Verifica che il file esistente sia valido (>0 byte e magic image)
+        try {
+          const stat = fs.statSync(fullPath)
+          if (stat.size > 100 && this.isValidImageFile(fullPath)) {
+            localAvatarPath = fullPath
+          } else {
+            fs.unlinkSync(fullPath) // file corrotto, riscarica
+          }
+        } catch { /* ignora */ }
+      }
+      if (!localAvatarPath) {
         try {
           const url = await contact.getProfilePicUrl()
           if (url) {
             const response = await fetch(url)
-            const buffer = await response.arrayBuffer()
-            fs.writeFileSync(fullPath, Buffer.from(buffer))
-            localAvatarPath = fullPath
+            if (response.ok) {
+              const buffer = Buffer.from(await response.arrayBuffer())
+              if (buffer.length > 100 && this.isValidImageBuffer(buffer)) {
+                fs.writeFileSync(fullPath, buffer)
+                localAvatarPath = fullPath
+              }
+            }
           }
         } catch { /* niente avatar, ok */ }
       }
@@ -451,6 +476,8 @@ class WhatsAppManager {
       chatWaId = this.toIdString(fallback)
     }
     if (!chatWaId) return
+    // Ignora completamente status broadcast e liste broadcast
+    if (this.isSystemChat(chatWaId)) return
 
     let contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id = ? AND whatsapp_id = ?')
       .get(accountId, chatWaId)
@@ -509,11 +536,18 @@ class WhatsAppManager {
       mediaSize = data.size || data.fileSize || null
       mediaWidth = data.width || null
       mediaHeight = data.height || null
-      // Per immagini/video WhatsApp include una micro-thumbnail base64 (~5-10kb)
+      // Per immagini/video WhatsApp include una micro-thumbnail base64 (~5-10kb).
+      // ATTENZIONE: per video con caption, _data.body è il caption testuale, non la thumb.
+      // Validiamo: deve iniziare coi byte magici JPEG (`/9j/`) o PNG (`iVBORw0`).
       const mt = (msg.type || '').toLowerCase()
-      if ((mt === 'image' || mt === 'video' || mt === 'sticker') && typeof data.body === 'string' && data.body.length < 50_000 && data.body.length > 100) {
-        // body è base64 jpeg per immagini/video
-        mediaThumb = `data:image/jpeg;base64,${data.body}`
+      if (mt === 'image' || mt === 'video' || mt === 'sticker') {
+        const candidate = typeof data.body === 'string' && data.body.length > 100 && data.body.length < 80_000
+          ? data.body
+          : null
+        if (candidate && (candidate.startsWith('/9j/') || candidate.startsWith('iVBORw0'))) {
+          const isJpeg = candidate.startsWith('/9j/')
+          mediaThumb = `data:image/${isJpeg ? 'jpeg' : 'png'};base64,${candidate}`
+        }
       }
     }
 
@@ -567,6 +601,31 @@ class WhatsAppManager {
         status: 'received'
       }
     })
+  }
+
+  // Verifica che un Buffer sia un'immagine vera (JPEG/PNG/WEBP/GIF magic bytes)
+  isValidImageBuffer(buf) {
+    if (!buf || buf.length < 8) return false
+    // JPEG: FF D8 FF
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true
+    // GIF: 47 49 46 38
+    if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return true
+    // WEBP: "RIFF...WEBP"
+    if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
+        && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true
+    return false
+  }
+
+  isValidImageFile(filePath) {
+    try {
+      const fd = fs.openSync(filePath, 'r')
+      const buf = Buffer.alloc(12)
+      fs.readSync(fd, buf, 0, 12, 0)
+      fs.closeSync(fd)
+      return this.isValidImageBuffer(buf)
+    } catch { return false }
   }
 
   async downloadAndSaveMedia(accountId, msg) {

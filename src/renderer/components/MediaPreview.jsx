@@ -31,6 +31,8 @@ function ImagePreview({ msg, downloading, onDownload, onPreviewImage }) {
   const fileUrl = msg.media_path ? `file:///${msg.media_path.replace(/\\/g, '/')}` : null
   const ratio = msg.media_width && msg.media_height ? msg.media_height / msg.media_width : 0.75
   const W = 320, H = Math.min(360, Math.max(120, W * ratio))
+  const [thumbErr, setThumbErr] = useState(false)
+  const [fullErr, setFullErr] = useState(false)
 
   return (
     <div style={{
@@ -41,20 +43,23 @@ function ImagePreview({ msg, downloading, onDownload, onPreviewImage }) {
       onClick={() => fileUrl ? onPreviewImage(fileUrl) : (!downloading && onDownload(msg.id))}
     >
       {/* Thumb base64 sempre come sfondo (compare istantaneamente) */}
-      {msg.media_thumb && (
+      {msg.media_thumb && !thumbErr && (
         <img src={msg.media_thumb} alt=""
+          onError={() => setThumbErr(true)}
           style={{
             width: '100%', height: '100%', objectFit: 'cover',
-            filter: fileUrl ? 'none' : 'blur(8px)',
+            filter: fileUrl && !fullErr ? 'none' : 'blur(8px)',
             position: 'absolute', inset: 0
           }} />
       )}
       {/* Immagine full quality sopra */}
-      {fileUrl && (
-        <img src={fileUrl} alt="" style={{
-          width: '100%', height: '100%', objectFit: 'cover',
-          position: 'absolute', inset: 0
-        }} />
+      {fileUrl && !fullErr && (
+        <img src={fileUrl} alt=""
+          onError={() => setFullErr(true)}
+          style={{
+            width: '100%', height: '100%', objectFit: 'cover',
+            position: 'absolute', inset: 0
+          }} />
       )}
       {/* Overlay download */}
       {!fileUrl && (
@@ -85,8 +90,9 @@ function ImagePreview({ msg, downloading, onDownload, onPreviewImage }) {
 
 function StickerPreview({ msg, downloading, onDownload }) {
   const fileUrl = msg.media_path ? `file:///${msg.media_path.replace(/\\/g, '/')}` : null
-  if (fileUrl) return <img src={fileUrl} alt="sticker" style={{ width: 140, height: 140, display: 'block' }} />
-  if (msg.media_thumb) return <img src={msg.media_thumb} alt="sticker" style={{ width: 140, height: 140, display: 'block', cursor: 'pointer' }} onClick={() => onDownload(msg.id)} />
+  const [err, setErr] = useState(false)
+  if (fileUrl && !err) return <img src={fileUrl} alt="sticker" onError={() => setErr(true)} style={{ width: 140, height: 140, display: 'block' }} />
+  if (msg.media_thumb && !err) return <img src={msg.media_thumb} alt="sticker" onError={() => setErr(true)} style={{ width: 140, height: 140, display: 'block', cursor: 'pointer' }} onClick={() => onDownload(msg.id)} />
   return <button onClick={() => onDownload(msg.id)} disabled={downloading} style={{ ...placeholderBtn, width: 140, height: 140 }}>
     {downloading ? '⏳' : <Download size={20} />}
   </button>
@@ -98,20 +104,22 @@ function VideoPreview({ msg, downloading, onDownload, onOpenFile }) {
   const fileUrl = msg.media_path ? `file:///${msg.media_path.replace(/\\/g, '/')}` : null
   const ratio = msg.media_width && msg.media_height ? msg.media_height / msg.media_width : 0.5625
   const W = 320, H = Math.min(360, Math.max(140, W * ratio))
+  const [videoErr, setVideoErr] = useState(false)
+  const [thumbErr, setThumbErr] = useState(false)
 
   return (
     <div style={{
       width: W, height: H, borderRadius: 8, overflow: 'hidden',
       background: '#000', position: 'relative', marginBottom: 4
     }}>
-      {fileUrl ? (
-        <video src={fileUrl} controls style={{ width: '100%', height: '100%' }} />
+      {fileUrl && !videoErr ? (
+        <video src={fileUrl} controls onError={() => setVideoErr(true)} style={{ width: '100%', height: '100%' }} />
       ) : (
-        <div onClick={() => !downloading && onDownload(msg.id)} style={{
+        <div onClick={() => !downloading && (videoErr ? onOpenFile(fileUrl) : onDownload(msg.id))} style={{
           width: '100%', height: '100%', position: 'relative', cursor: 'pointer'
         }}>
-          {msg.media_thumb && (
-            <img src={msg.media_thumb} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} />
+          {msg.media_thumb && !thumbErr && (
+            <img src={msg.media_thumb} alt="" onError={() => setThumbErr(true)} style={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'brightness(0.7)' }} />
           )}
           <div style={overlayBox}>
             {downloading ? (
@@ -176,7 +184,7 @@ function AudioPreview({ msg, downloading, onDownload }) {
         </div>
       </div>
       {fileUrl && (
-        <audio ref={audioRef} src={fileUrl} onEnded={() => setPlaying(false)} preload="none" />
+        <audio ref={audioRef} src={fileUrl} onEnded={() => setPlaying(false)} onError={() => setPlaying(false)} preload="none" />
       )}
     </div>
   )

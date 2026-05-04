@@ -132,7 +132,7 @@ export default function ChatView({ contact, accountId }) {
         <div className="main-header__info">
           <div className="main-header__avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {contact.profile_pic_path ? (
-              <img src={`file:///${contact.profile_pic_path.replace(/\\/g, '/')}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <img src={`file:///${contact.profile_pic_path.replace(/\\/g, '/')}`} alt="" onError={(e) => { e.target.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             ) : (
               contact.is_group ? <Users size={18} /> : <User size={18} />
             )}

@@ -187,6 +187,24 @@ function getDatabase() {
 }
 
 /**
+ * Rimuove i contatti "di sistema" finiti per errore nel DB:
+ *  - status@broadcast (gli stati di tutti)
+ *  - liste broadcast generiche
+ *  - 0@c.us (notifiche WhatsApp)
+ * Cancella anche i loro messaggi e folder_members associati (CASCADE).
+ */
+function cleanSystemContacts() {
+  if (!db) return { removed: 0 }
+  const result = db.prepare(`
+    DELETE FROM contacts
+    WHERE whatsapp_id = 'status@broadcast'
+       OR whatsapp_id = '0@c.us'
+       OR whatsapp_id LIKE '%@broadcast'
+  `).run()
+  return { removed: result.changes }
+}
+
+/**
  * Unifica i contatti duplicati (stesso account_id + stesso phone_number, oppure
  * stesso account_id + whatsapp_id che differiscono solo per il suffisso dominio
  * — capita con @c.us vs @lid). Tiene il record più "ricco" (più messaggi) e
@@ -227,4 +245,4 @@ function dedupeContacts() {
   return { merged }
 }
 
-module.exports = { initDatabase, getDatabase, dedupeContacts }
+module.exports = { initDatabase, getDatabase, dedupeContacts, cleanSystemContacts }

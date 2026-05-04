@@ -81,7 +81,7 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
                   overflow: 'hidden'
                 }}>
                   {c.profile_pic_path
-                    ? <img src={`file:///${c.profile_pic_path.replace(/\\/g, '/')}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <img src={`file:///${c.profile_pic_path.replace(/\\/g, '/')}`} alt="" onError={(e) => { e.target.style.display = 'none' }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : (c.is_group ? <Users size={16} /> : <User size={16} />)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>

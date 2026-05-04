@@ -41,19 +41,23 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   // CONTACTS
   ipcMain.handle('contacts:getAll', (_, accountId) => {
     return db.prepare(`
-      SELECT c.*, 
+      SELECT c.*,
       (SELECT body FROM messages WHERE contact_id = c.id ORDER BY timestamp DESC LIMIT 1) as last_message_body
-      FROM contacts c 
-      WHERE c.account_id = ? AND c.is_group = 0 
+      FROM contacts c
+      WHERE c.account_id = ? AND c.is_group = 0
+        AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
+        AND c.whatsapp_id NOT LIKE '%@broadcast'
       ORDER BY last_message_at DESC, name ASC
     `).all(accountId)
   })
   ipcMain.handle('contacts:getGroups', (_, accountId) => {
     return db.prepare(`
-      SELECT c.*, 
+      SELECT c.*,
       (SELECT body FROM messages WHERE contact_id = c.id ORDER BY timestamp DESC LIMIT 1) as last_message_body
-      FROM contacts c 
-      WHERE c.account_id = ? AND c.is_group = 1 
+      FROM contacts c
+      WHERE c.account_id = ? AND c.is_group = 1
+        AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
+        AND c.whatsapp_id NOT LIKE '%@broadcast'
       ORDER BY last_message_at DESC, name ASC
     `).all(accountId)
   })
