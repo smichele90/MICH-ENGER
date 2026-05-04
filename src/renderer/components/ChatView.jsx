@@ -3,6 +3,7 @@ import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, DownloadC
 import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import MediaPreview from './MediaPreview'
+import MessageBody from './MessageBody'
 
 export default function ChatView({ contact, accountId }) {
   const [messages, setMessages] = useState([])
@@ -236,7 +237,13 @@ export default function ChatView({ contact, accountId }) {
                       onOpenFile={(p) => window.api.openFile(p)}
                     />
                   )}
-                  {msg.body && <div style={{ wordBreak: 'break-word' }}>{msg.body}</div>}
+                  {msg.body && (
+                    <MessageBody
+                      body={msg.body}
+                      accountId={accountId}
+                      isGroup={contact.is_group}
+                    />
+                  )}
                   <div className="message__actions">
                     <button
                       className="message__action-btn"

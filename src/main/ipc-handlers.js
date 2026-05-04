@@ -125,6 +125,25 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
       .all(accountId, `%${query}%`)
   })
 
+  // Risolvi phone_numbers a nomi (per menzioni @numero nei messaggi di gruppo)
+  ipcMain.handle('messages:resolvePhoneNumbers', (_, accountId, phoneNumbers) => {
+    const map = {}
+    if (!Array.isArray(phoneNumbers) || phoneNumbers.length === 0) return map
+    
+    for (const phoneNum of phoneNumbers) {
+      if (map[phoneNum]) continue // già risolto
+      const contact = db.prepare('SELECT name, push_name, phone_number FROM contacts WHERE account_id = ? AND phone_number = ?')
+        .get(accountId, phoneNum)
+      if (contact) {
+        // Priorità: name > push_name > phone_number
+        map[phoneNum] = contact.name || contact.push_name || contact.phone_number || phoneNum
+      } else {
+        map[phoneNum] = phoneNum // fallback: numero stesso
+      }
+    }
+    return map
+  })
+
   // SCHEDULED MESSAGES
   ipcMain.handle('scheduled:getAll', (_, accountId) => {
     return db.prepare('SELECT * FROM scheduled_messages WHERE account_id = ? ORDER BY next_send_at').all(accountId)
