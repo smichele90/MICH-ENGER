@@ -410,27 +410,36 @@ class WhatsAppManager {
       const waId = this.toIdString(contact.id)
       if (!waId || this.isSystemChat(waId)) continue
 
-      // Avatar: scaricalo solo se non lo abbiamo già (lazy + validazione magic bytes)
+      const stored = this.db.prepare('SELECT profile_pic_url FROM contacts WHERE account_id = ? AND whatsapp_id = ?')
+        .get(accountId, waId)
+
+      // Avatar: scaricalo se non lo abbiamo o se l'URL è cambiato
       let localAvatarPath = null
       let profilePicUrl = null
       const filename = `${waId.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`
       const fullPath = path.join(avatarDir, filename)
       if (fs.existsSync(fullPath)) {
-        // Verifica che il file esistente sia valido (>0 byte e magic image)
         try {
           const stat = fs.statSync(fullPath)
           if (stat.size > 100 && this.isValidImageFile(fullPath)) {
             localAvatarPath = fullPath
           } else {
-            fs.unlinkSync(fullPath) // file corrotto, riscarica
+            fs.unlinkSync(fullPath)
           }
         } catch { /* ignora */ }
       }
+
       try {
-        const url = await contact.getProfilePicUrl()
-        if (url) profilePicUrl = url
-        if (!localAvatarPath && url) {
-          const response = await fetch(url)
+        profilePicUrl = await contact.getProfilePicUrl()
+      } catch { profilePicUrl = null }
+
+      const shouldDownload = profilePicUrl && (!localAvatarPath || profilePicUrl !== stored?.profile_pic_url)
+      if (shouldDownload) {
+        if (fs.existsSync(fullPath)) {
+          try { fs.unlinkSync(fullPath) } catch { }
+        }
+        try {
+          const response = await fetch(profilePicUrl)
           if (response.ok) {
             const buffer = Buffer.from(await response.arrayBuffer())
             if (buffer.length > 100 && this.isValidImageBuffer(buffer)) {
@@ -438,8 +447,8 @@ class WhatsAppManager {
               localAvatarPath = fullPath
             }
           }
-        }
-      } catch { /* niente avatar, ok */ }
+        } catch { /* niente avatar, ok */ }
+      }
 
       try {
         upsertContact.run(
