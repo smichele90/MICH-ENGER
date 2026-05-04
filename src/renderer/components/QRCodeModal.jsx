@@ -6,57 +6,67 @@ export default function QRCodeModal({ onClose, onConnected }) {
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [status, setStatus] = useState('loading') // loading, qr, connecting, ready
   const [error, setError] = useState(null)
-  const [tempAccountId, setTempAccountId] = useState(null)
   const initialized = useRef(false)
+  const tempAccountIdRef = useRef(null)
+  const isReadyRef = useRef(false)
+  const onConnectedRef = useRef(onConnected)
+  useEffect(() => { onConnectedRef.current = onConnected }, [onConnected])
 
+  // Mount-once: nessuna dipendenza da stato mutabile, così non si re-registrano
+  // i listener né si scatena il cleanup prematuro.
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
 
+    let cancelled = false
+
     const initPairing = async () => {
       try {
         const result = await window.api.createAccount({ name: 'Nuovo Account', phone_number: '' })
-        const accountId = result.id
-        setTempAccountId(accountId)
-        await window.api.initializeWhatsApp(accountId)
-        setStatus('connecting')
+        if (cancelled) return
+        tempAccountIdRef.current = result.id
+        await window.api.initializeWhatsApp(result.id)
+        if (!cancelled) setStatus('connecting')
       } catch (err) {
-        setError('Errore durante l\'inizializzazione: ' + err.message)
-        setStatus('error')
+        if (!cancelled) {
+          setError('Errore durante l\'inizializzazione: ' + err.message)
+          setStatus('error')
+        }
       }
     }
 
     initPairing()
 
-    // Listener per eventi WhatsApp
-    const removeQrListener = window.api.onWhatsAppEvent('wa:qr', async ({ accountId, qr }) => {
+    const removeQrListener = window.api.onWhatsAppEvent('wa:qr', async ({ qr }) => {
       const url = await QRCode.toDataURL(qr)
-      setQrDataUrl(url)
-      setStatus('qr')
+      if (!cancelled) { setQrDataUrl(url); setStatus('qr') }
     })
 
-    const removeReadyListener = window.api.onWhatsAppEvent('wa:ready', async ({ accountId, info }) => {
+    const removeReadyListener = window.api.onWhatsAppEvent('wa:ready', async ({ accountId }) => {
+      if (cancelled) return
+      isReadyRef.current = true
       setStatus('ready')
       const accounts = await window.api.getAccounts()
       const newAccount = accounts.find(a => a.id === accountId)
-      setTimeout(() => onConnected(newAccount), 1500)
+      setTimeout(() => onConnectedRef.current?.(newAccount), 1500)
     })
 
     const removeLoadingListener = window.api.onWhatsAppEvent('wa:loading', () => {
-      setStatus('connecting')
+      if (!cancelled) setStatus(s => (s === 'qr' ? s : 'connecting'))
     })
 
     return () => {
+      cancelled = true
       removeQrListener?.()
       removeReadyListener?.()
       removeLoadingListener?.()
-      
-      // Se chiudiamo il modal prima che sia pronto, distruggiamo il client temporaneo
-      if (!initialized.current || status !== 'ready') {
-        window.api.destroyWhatsApp(tempAccountId).catch(() => {})
+      // Distruggi il client temporaneo SOLO se l'utente ha chiuso prima del ready
+      if (!isReadyRef.current && tempAccountIdRef.current) {
+        window.api.destroyWhatsApp(tempAccountIdRef.current).catch(() => {})
       }
     }
-  }, [onConnected, status, tempAccountId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="modal-overlay" onClick={onClose}>

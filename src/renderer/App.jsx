@@ -7,6 +7,8 @@ import TaskView from './components/TaskView'
 import ScheduledList from './components/ScheduledList'
 import QRCodeModal from './components/QRCodeModal'
 import SearchOverlay from './components/SearchOverlay'
+import FolderContactManager from './components/FolderContactManager'
+import FolderView from './components/FolderView'
 
 export default function App() {
   const [theme, setTheme] = useState('dark')
@@ -18,6 +20,7 @@ export default function App() {
   const [showQRModal, setShowQRModal] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
+  const [managingFolder, setManagingFolder] = useState(null)
 
   // Carica tema e accounts all'avvio
   useEffect(() => {
@@ -61,13 +64,14 @@ export default function App() {
     await window.api.setSetting('theme', newTheme)
   }, [theme])
 
-  // Window controls
+  // Window controls + ascolto stato max dal main
+  useEffect(() => {
+    window.api.isMaximized().then(setIsMaximized).catch(() => {})
+    const off = window.api.on?.('window:maxState', (state) => setIsMaximized(state))
+    return () => off?.()
+  }, [])
   const handleMinimize = () => window.api.minimize()
-  const handleMaximize = async () => {
-    window.api.maximize()
-    const max = await window.api.isMaximized()
-    setIsMaximized(max)
-  }
+  const handleMaximize = () => window.api.maximize()
   const handleClose = () => window.api.close()
 
   // Account handlers
@@ -121,6 +125,9 @@ export default function App() {
         if (activeContact) {
           return <ChatView contact={activeContact} accountId={activeAccount?.id} />
         }
+        if (activeFolder) {
+          return <FolderView folder={activeFolder} accountId={activeAccount?.id} onSelectContact={handleSelectContact} />
+        }
         return (
           <div className="empty-state">
             <div className="empty-state__icon">💬</div>
@@ -173,6 +180,7 @@ export default function App() {
           onSelectContact={handleSelectContact}
           onSelectFolder={handleSelectFolder}
           onNavigate={handleNavigate}
+          onManageFolder={setManagingFolder}
         />
 
         {/* Area principale */}
@@ -198,6 +206,15 @@ export default function App() {
           accountId={activeAccount?.id}
           onClose={() => setShowSearch(false)}
           onNavigate={handleNavigate}
+        />
+      )}
+
+      {/* Folder Contact Manager */}
+      {managingFolder && (
+        <FolderContactManager
+          folder={managingFolder}
+          accountId={activeAccount?.id}
+          onClose={() => setManagingFolder(null)}
         />
       )}
     </>

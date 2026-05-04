@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
-import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal } from 'lucide-react'
+import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal, Users } from 'lucide-react'
 
-export default function FolderTree({ folders, activeFolder, onSelect, onRefresh, depth = 0 }) {
+export default function FolderTree({ folders, activeFolder, onSelect, onRefresh, onManage, depth = 0 }) {
   return (
     <div className={depth > 0 ? 'folder-children' : ''}>
       {folders.map(folder => (
@@ -11,6 +11,7 @@ export default function FolderTree({ folders, activeFolder, onSelect, onRefresh,
           activeFolder={activeFolder}
           onSelect={onSelect}
           onRefresh={onRefresh}
+          onManage={onManage}
           depth={depth}
         />
       ))}
@@ -18,7 +19,7 @@ export default function FolderTree({ folders, activeFolder, onSelect, onRefresh,
   )
 }
 
-function FolderNode({ folder, activeFolder, onSelect, onRefresh, depth }) {
+function FolderNode({ folder, activeFolder, onSelect, onRefresh, onManage, depth }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -112,6 +113,9 @@ function FolderNode({ folder, activeFolder, onSelect, onRefresh, depth }) {
             <button className="context-menu__item" onClick={() => { setShowNewSub(true); setShowMenu(false); setIsOpen(true) }}>
               <FolderPlus size={14} /> Nuova sub-cartella
             </button>
+            <button className="context-menu__item" onClick={() => { onManage?.(folder); setShowMenu(false) }}>
+              <Users size={14} /> Gestisci contatti
+            </button>
             <button className="context-menu__item" onClick={() => { setIsRenaming(true); setShowMenu(false) }}>
               <Pencil size={14} /> Rinomina
             </button>
@@ -125,7 +129,7 @@ function FolderNode({ folder, activeFolder, onSelect, onRefresh, depth }) {
 
       {/* Sub-cartelle */}
       {isOpen && hasChildren && (
-        <FolderTree folders={folder.children} activeFolder={activeFolder} onSelect={onSelect} onRefresh={onRefresh} depth={depth + 1} />
+        <FolderTree folders={folder.children} activeFolder={activeFolder} onSelect={onSelect} onRefresh={onRefresh} onManage={onManage} depth={depth + 1} />
       )}
 
       {/* Input nuova sub-cartella */}

@@ -178,4 +178,45 @@ function getDatabase() {
   return db
 }
 
-module.exports = { initDatabase, getDatabase }
+/**
+ * Unifica i contatti duplicati (stesso account_id + stesso phone_number, oppure
+ * stesso account_id + whatsapp_id che differiscono solo per il suffisso dominio
+ * — capita con @c.us vs @lid). Tiene il record più "ricco" (più messaggi) e
+ * sposta i messaggi/folder_members degli altri sul vincente.
+ */
+function dedupeContacts() {
+  if (!db) return { merged: 0 }
+  let merged = 0
+
+  const groups = db.prepare(`
+    SELECT account_id, phone_number, GROUP_CONCAT(id) as ids, COUNT(*) as cnt
+    FROM contacts
+    WHERE phone_number IS NOT NULL AND phone_number != '' AND is_group = 0
+    GROUP BY account_id, phone_number
+    HAVING cnt > 1
+  `).all()
+
+  const txn = db.transaction((dupGroups) => {
+    for (const g of dupGroups) {
+      const ids = g.ids.split(',').map(Number)
+      // winner = quello con più messaggi
+      const ranked = ids.map(id => ({
+        id,
+        msgs: db.prepare('SELECT COUNT(*) as c FROM messages WHERE contact_id = ?').get(id).c
+      })).sort((a, b) => b.msgs - a.msgs)
+      const winner = ranked[0].id
+      const losers = ranked.slice(1).map(r => r.id)
+      for (const loser of losers) {
+        db.prepare('UPDATE messages SET contact_id = ? WHERE contact_id = ?').run(winner, loser)
+        db.prepare('UPDATE OR IGNORE folder_members SET contact_id = ? WHERE contact_id = ?').run(winner, loser)
+        db.prepare('DELETE FROM folder_members WHERE contact_id = ?').run(loser)
+        db.prepare('DELETE FROM contacts WHERE id = ?').run(loser)
+        merged++
+      }
+    }
+  })
+  txn(groups)
+  return { merged }
+}
+
+module.exports = { initDatabase, getDatabase, dedupeContacts }

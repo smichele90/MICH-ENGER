@@ -1,14 +1,32 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Image, Mic, Clock, MoreVertical, CheckSquare, User, Users, DownloadCloud, FolderPlus } from 'lucide-react'
-import TaskCreateModal from './TaskCreateModal'
+import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, DownloadCloud, FolderPlus, Download } from 'lucide-react'
+import MessageToTask from './MessageToTask'
+import ScheduleMessageModal from './ScheduleMessageModal'
 
 export default function ChatView({ contact, accountId }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showTaskModal, setShowTaskModal] = useState(false)
-  const [selectedMsgForTask, setSelectedMsgForTask] = useState(null)
+  const [taskPopover, setTaskPopover] = useState(null) // { message, rect }
+  const [showSchedule, setShowSchedule] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
+  const [downloadingMedia, setDownloadingMedia] = useState(new Set())
+
+  // Scarica media on-demand
+  const handleDownloadMedia = async (msgId) => {
+    if (downloadingMedia.has(msgId)) return
+    setDownloadingMedia(prev => new Set(prev).add(msgId))
+    try {
+      const r = await window.api.downloadMedia(accountId, msgId)
+      if (r?.success) {
+        setMessages(prev => prev.map(m => m.id === msgId
+          ? { ...m, media_path: r.media_path, media_mime: r.media_mime, media_filename: r.media_filename }
+          : m))
+      }
+    } finally {
+      setDownloadingMedia(prev => { const n = new Set(prev); n.delete(msgId); return n })
+    }
+  }
   const [showFolderModal, setShowFolderModal] = useState(false)
   const [folders, setFolders] = useState([])
   const chatEndRef = useRef(null)
@@ -159,25 +177,25 @@ export default function ChatView({ contact, accountId }) {
                   <div style={{ padding: '4px 8px', fontSize: 12, color: 'var(--text-muted)' }}>Nessuna cartella</div>
                 ) : (
                   folders.map(f => (
-                    <button 
-                      key={f.id} 
+                    <button
+                      key={f.id}
                       onClick={async () => {
-                        await window.api.addFolderMember(f.id, contact.id);
+                        const ok = await window.api.addFolderMember(f.id, contact.id);
                         setShowFolderModal(false);
-                        alert('Aggiunto alla cartella!');
+                        if (ok === false) alert(`${contact.name || 'Contatto'} è già in "${f.name}".`);
+                        else alert(`Aggiunto a "${f.name}".`);
                       }}
                       style={{ width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: 4, fontSize: 13 }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
                     >
-                      {f.name}
+                      📁 {f.name}
                     </button>
                   ))
                 )}
               </div>
             )}
           </div>
-          <button className="btn--icon" title="Altre opzioni">
-            <MoreVertical size={18} />
-          </button>
         </div>
       </div>
 
@@ -208,27 +226,48 @@ export default function ChatView({ contact, accountId }) {
               )}
               <div className={`message ${msg.is_from_me ? 'message--me' : 'message--other'}`}>
                 <div className="message__bubble">
-                  {(msg.media_type === 'image' || msg.media_type === 'sticker') && msg.media_path && (
-                    <div style={{ marginBottom: 4, borderRadius: 8, overflow: 'hidden' }}>
-                      <img 
-                        src={`file:///${msg.media_path.replace(/\\/g, '/')}`} 
-                        alt="Media" 
-                        style={{ maxWidth: msg.media_type === 'sticker' ? 140 : '100%', display: 'block', cursor: 'pointer' }} 
-                        onClick={() => setPreviewImage(`file:///${msg.media_path.replace(/\\/g, '/')}`)}
-                      />
-                    </div>
+                  {(msg.media_type === 'image' || msg.media_type === 'sticker') && (
+                    msg.media_path ? (
+                      <div style={{ marginBottom: 4, borderRadius: 8, overflow: 'hidden' }}>
+                        <img
+                          src={`file:///${msg.media_path.replace(/\\/g, '/')}`}
+                          alt="Media"
+                          style={{ maxWidth: msg.media_type === 'sticker' ? 140 : '100%', display: 'block', cursor: 'pointer' }}
+                          onClick={() => setPreviewImage(`file:///${msg.media_path.replace(/\\/g, '/')}`)}
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleDownloadMedia(msg.id)}
+                        disabled={downloadingMedia.has(msg.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, padding: '24px 20px',
+                          background: 'rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 4,
+                          fontSize: 12, cursor: 'pointer', border: 'none', color: 'inherit',
+                          minWidth: 180, justifyContent: 'center'
+                        }}
+                      >
+                        {downloadingMedia.has(msg.id)
+                          ? <>⏳ Scarico…</>
+                          : <><Download size={16} /> Scarica {msg.media_type}</>}
+                      </button>
+                    )
                   )}
                   {msg.media_type !== 'text' && msg.media_type !== 'image' && msg.media_type !== 'sticker' && (
-                    <div 
-                      onClick={() => msg.media_path && window.api.openFile(msg.media_path)}
-                      style={{ 
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', 
-                        background: 'rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 4, fontSize: 13, cursor: 'pointer' 
+                    <div
+                      onClick={() => msg.media_path ? window.api.openFile(msg.media_path) : handleDownloadMedia(msg.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
+                        background: 'rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 4, fontSize: 13, cursor: 'pointer'
                       }}
                     >
-                      <Paperclip size={14} />
+                      {msg.media_path ? <Paperclip size={14} /> : <Download size={14} />}
                       <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {msg.media_filename || `Scarica ${msg.media_type}`}
+                        {downloadingMedia.has(msg.id)
+                          ? 'Scarico…'
+                          : msg.media_path
+                            ? (msg.media_filename || `Apri ${msg.media_type}`)
+                            : `Scarica ${msg.media_type}`}
                       </span>
                     </div>
                   )}
@@ -237,13 +276,9 @@ export default function ChatView({ contact, accountId }) {
                     <button
                       className="message__action-btn"
                       title="Converti in Task"
-                      onClick={() => {
-                        setSelectedMsgForTask({
-                          title: msg.body.substring(0, 50) + (msg.body.length > 50 ? '...' : ''),
-                          description: msg.body,
-                          source_message_id: msg.wa_message_id
-                        })
-                        setShowTaskModal(true)
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setTaskPopover({ message: msg, rect })
                       }}
                     >
                       <CheckSquare size={14} />
@@ -279,20 +314,27 @@ export default function ChatView({ contact, accountId }) {
             rows={1}
           />
         </div>
-        <button className="chat-input-btn" title="Programma invio"><Clock size={18} /></button>
+        <button className="chat-input-btn" title="Programma invio" onClick={() => setShowSchedule(true)}><Clock size={18} /></button>
         <button className="chat-send-btn" onClick={handleSend} title="Invia">
           <Send size={18} />
         </button>
       </div>
 
-      {showTaskModal && (
-        <TaskCreateModal
-          initialData={selectedMsgForTask}
-          onClose={() => setShowTaskModal(false)}
-          onCreated={() => {
-            // Potrebbe mostrare un toast qui
-            setShowTaskModal(false)
-          }}
+      {taskPopover && (
+        <MessageToTask
+          message={taskPopover.message}
+          anchorRect={taskPopover.rect}
+          onClose={() => setTaskPopover(null)}
+          onCreated={() => setTaskPopover(null)}
+        />
+      )}
+
+      {showSchedule && (
+        <ScheduleMessageModal
+          accountId={accountId}
+          initialContact={contact}
+          onClose={() => setShowSchedule(false)}
+          onSaved={() => setShowSchedule(false)}
         />
       )}
 

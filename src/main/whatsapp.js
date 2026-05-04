@@ -2,48 +2,79 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js')
 const { app, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
-const schedule = require('node-schedule')
 
+/**
+ * WhatsAppManager riprogettato per essere robusto come WhatsApp Web:
+ *  - Init idempotente (nessuna race condition: due chiamate concorrenti
+ *    condividono la stessa Promise di inizializzazione).
+ *  - Lock di sync per account (un solo sync per volta, niente doppioni).
+ *  - Media NON scaricati durante il bulk sync (lazy on-demand quando il
+ *    renderer apre la chat). I messaggi con `hasMedia` sono salvati con
+ *    `media_path = NULL` e flag `media_pending = 1`.
+ *  - Tutti i `webContents.send` passano per `safeSend` (no crash su
+ *    finestra distrutta).
+ *  - protocolTimeout di puppeteer alzato a 3 minuti.
+ *  - authorId dei gruppi normalizzato a stringa.
+ */
 class WhatsAppManager {
   constructor(db, mainWindow) {
     this.db = db
     this.mainWindow = mainWindow
-    this.clients = new Map() // accountId -> Client instance
-    this.scheduledTasks = new Map() // scheduledMessageId -> job
+    this.clients = new Map()        // accountId -> Client
+    this.initializing = new Map()   // accountId -> Promise<boolean>
+    this.syncing = new Set()         // accountId attualmente in sync
     this.initHandlers()
-    this.loadScheduledMessages()
     this.autoInitializeAccounts()
   }
 
+  // ---------- helpers ----------
+
+  safeSend(channel, payload) {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return
+    try { this.mainWindow.webContents.send(channel, payload) } catch (e) { /* finestra in chiusura */ }
+  }
+
+  toIdString(id) {
+    if (!id) return null
+    if (typeof id === 'string') return id
+    if (id._serialized) return id._serialized
+    if (id.user && id.server) return `${id.user}@${id.server}`
+    try { return String(id) } catch { return null }
+  }
+
   async autoInitializeAccounts() {
-    const activeAccounts = this.db.prepare("SELECT id FROM accounts WHERE phone_number IS NOT NULL AND phone_number != ''").all()
+    const activeAccounts = this.db.prepare(
+      "SELECT id FROM accounts WHERE phone_number IS NOT NULL AND phone_number != ''"
+    ).all()
     for (const acc of activeAccounts) {
-      this.initializeClient(acc.id).catch(err => console.error(`Failed to auto-init account ${acc.id}:`, err))
+      this.initializeClient(acc.id).catch(err => console.error(`[WA] auto-init failed ${acc.id}:`, err))
     }
   }
 
+  // ---------- IPC ----------
+
   initHandlers() {
-    // Segna come letto
+    ipcMain.handle('wa:initialize', async (_, accountId) => this.initializeClient(accountId))
+    ipcMain.handle('wa:destroy', async (_, accountId) => this.destroyClient(accountId))
+
     ipcMain.handle('wa:markAsRead', async (_, accountId, contactId) => {
       const client = this.clients.get(accountId)
-      if (!client || !client.pupPage) return
-      
+      if (!client) return
       const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(contactId)
-      if (contact) {
-        try {
-          const chat = await client.getChatById(contact.whatsapp_id)
-          if (chat) {
-            await chat.sendSeen()
-            this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE id = ?').run(contactId)
-            this.mainWindow.webContents.send('wa:contacts-updated', accountId)
-          }
-        } catch (err) { console.error('Error marking as read:', err) }
-      }
+      if (!contact) return
+      try {
+        const chat = await client.getChatById(contact.whatsapp_id)
+        if (chat) {
+          await chat.sendSeen()
+          this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE id = ?').run(contactId)
+          this.safeSend('wa:contacts-updated', accountId)
+        }
+      } catch (err) { console.error('[WA] markAsRead error:', err) }
     })
 
     ipcMain.handle('wa:markAllAsRead', async (_, accountId) => {
       this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE account_id = ?').run(accountId)
-      this.mainWindow.webContents.send('wa:contacts-updated', accountId)
+      this.safeSend('wa:contacts-updated', accountId)
       return true
     })
 
@@ -51,14 +82,12 @@ class WhatsAppManager {
       try {
         const client = this.clients.get(accountId)
         if (!client) throw new Error('WhatsApp non connesso')
-        
         this.db.prepare('DELETE FROM messages WHERE account_id = ?').run(accountId)
         this.db.prepare('UPDATE contacts SET last_message_at = NULL, unread_count = 0 WHERE account_id = ?').run(accountId)
-        
-        await this.syncRecentHistory(accountId, client)
+        await this.runSync(accountId, client)
         return { success: true }
       } catch (err) {
-        console.error('Reset history error:', err)
+        console.error('[WA] resetHistory error:', err)
         return { success: false, error: err.message }
       }
     })
@@ -67,150 +96,127 @@ class WhatsAppManager {
       try {
         const client = this.clients.get(accountId)
         if (!client) throw new Error('WhatsApp non connesso')
-        
         const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(contactId)
         if (!contact) throw new Error('Contatto non trovato')
-
         const chat = await client.getChatById(contact.whatsapp_id)
         if (!chat) throw new Error('Chat non trovata')
-
         const messages = await chat.fetchMessages({ limit: 1000 })
         for (const msg of messages) {
-          await this.handleIncomingMessage(accountId, msg, false)
+          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         }
-        
-        this.mainWindow.webContents.send('wa:history-synced', { accountId })
+        this.safeSend('wa:history-synced', { accountId })
         return { success: true }
       } catch (err) {
-        console.error('Sync chat history error:', err)
+        console.error('[WA] syncChatHistory error:', err)
         return { success: false, error: err.message }
       }
     })
 
-    // Avvia il client per un account specifico
-    ipcMain.handle('wa:initialize', async (_, accountId) => {
-      return this.initializeClient(accountId)
-    })
-
-    // Invia un messaggio
     ipcMain.handle('wa:sendMessage', async (_, accountId, contactId, body, options = {}) => {
       const client = this.clients.get(accountId)
       if (!client) throw new Error('WhatsApp non è ancora connesso. Attendi qualche istante.')
-      
+      const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(contactId)
+      if (!contact) throw new Error('Contatto non trovato')
       try {
-        const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(contactId)
-        if (!contact) throw new Error('Contatto non trovato nel database locale')
-
-        console.log(`[WA] Sending message to ${contact.whatsapp_id}...`)
         const msg = await client.sendMessage(contact.whatsapp_id, body, options)
-        
-        // Forza l'inserimento immediato nel DB per feedback istantaneo
-        await this.handleIncomingMessage(accountId, msg)
-        
+        await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         return { id: msg.id.id, timestamp: msg.timestamp }
       } catch (err) {
-        console.error(`[WA] Send Error:`, err)
+        console.error('[WA] sendMessage error:', err)
         throw err
       }
     })
 
-    ipcMain.handle('wa:destroy', async (_, accountId) => {
-      return this.destroyClient(accountId)
+    // Download media on-demand (chiamato quando il renderer apre un messaggio media)
+    ipcMain.handle('wa:downloadMedia', async (_, accountId, messageDbId) => {
+      try {
+        const client = this.clients.get(accountId)
+        if (!client) return { success: false, error: 'Non connesso' }
+
+        const row = this.db.prepare('SELECT * FROM messages WHERE id = ?').get(messageDbId)
+        if (!row) return { success: false, error: 'Messaggio non trovato' }
+        if (row.media_path && fs.existsSync(row.media_path)) {
+          return { success: true, media_path: row.media_path }
+        }
+
+        const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(row.contact_id)
+        if (!contact) return { success: false, error: 'Contatto non trovato' }
+
+        // Trova il messaggio originale via fetch (limit alto per messaggi vecchi)
+        const chat = await client.getChatById(contact.whatsapp_id)
+        const messages = await chat.fetchMessages({ limit: 200 })
+        const msg = messages.find(m => m.id?.id === row.wa_message_id)
+        if (!msg || !msg.hasMedia) return { success: false, error: 'Media non disponibile' }
+
+        const saved = await this.downloadAndSaveMedia(accountId, msg)
+        if (!saved) return { success: false, error: 'Download fallito' }
+
+        this.db.prepare('UPDATE messages SET media_path = ?, media_mime = ?, media_filename = ? WHERE id = ?')
+          .run(saved.path, saved.mime, saved.filename, messageDbId)
+        return { success: true, media_path: saved.path, media_mime: saved.mime, media_filename: saved.filename }
+      } catch (err) {
+        console.error('[WA] downloadMedia error:', err)
+        return { success: false, error: err.message }
+      }
     })
   }
+
+  // ---------- destroy ----------
 
   async destroyClient(accountId) {
     const client = this.clients.get(accountId)
     if (client) {
-      try {
-        await client.destroy()
-      } catch (err) {
-        console.error(`Error destroying client ${accountId}:`, err)
-      }
+      try { await client.destroy() } catch (err) { console.error(`[WA] destroy error ${accountId}:`, err) }
       this.clients.delete(accountId)
     }
+    this.syncing.delete(accountId)
     return true
   }
 
-  // Carica i messaggi programmati dal DB all'avvio
-  loadScheduledMessages() {
-    const messages = this.db.prepare('SELECT * FROM scheduled_messages WHERE is_active = 1').all()
-    messages.forEach(msg => {
-      const targetTime = new Date(msg.next_send_at || msg.scheduled_at)
-      if (targetTime > new Date()) {
-        this.scheduleMessage(msg)
-      }
-    })
-  }
+  // ---------- send programmati (chiamato dallo Scheduler) ----------
 
-  scheduleMessage(msg) {
-    // Cancella task esistente se presente
-    if (this.scheduledTasks.has(msg.id)) {
-      this.scheduledTasks.get(msg.id).cancel()
-    }
-
-    const job = schedule.scheduleJob(new Date(msg.next_send_at || msg.scheduled_at), async () => {
-      await this.sendScheduledMessage(msg)
-    })
-    
-    if (job) {
-      this.scheduledTasks.set(msg.id, job)
-    }
-  }
-
-  async sendScheduledMessage(msg) {
+  async sendScheduledTo(msg) {
     const client = this.clients.get(msg.account_id)
     if (!client) {
-      console.error(`Client ${msg.account_id} non pronto per messaggio programmato ${msg.id}`)
-      return
+      console.error(`[WA] Client ${msg.account_id} non pronto per scheduled ${msg.id}`)
+      return false
     }
-
     try {
       let targets = []
       if (msg.target_type === 'contact' || msg.target_type === 'group') {
-        const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(msg.target_id)
-        if (contact) targets.push(contact.whatsapp_id)
+        const c = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(msg.target_id)
+        if (c) targets.push(c.whatsapp_id)
       } else if (msg.target_type === 'folder') {
-        const members = this.db.prepare('SELECT c.whatsapp_id FROM contacts c JOIN folder_members fm ON fm.contact_id = c.id WHERE fm.folder_id = ?').all(msg.target_id)
+        const members = this.db.prepare(
+          'SELECT c.whatsapp_id FROM contacts c JOIN folder_members fm ON fm.contact_id = c.id WHERE fm.folder_id = ?'
+        ).all(msg.target_id)
         targets = members.map(m => m.whatsapp_id)
       }
-
       for (const waId of targets) {
         await client.sendMessage(waId, msg.body)
+        await new Promise(r => setTimeout(r, 800))
       }
-
-      // Aggiorna stato nel DB
-      this.db.prepare("UPDATE scheduled_messages SET last_sent_at = datetime('now') WHERE id = ?").run(msg.id)
-      
-      // Gestione ricorrenza (semplificata)
-      if (msg.recurrence_type !== 'once') {
-        const nextTime = this.calculateNextTime(msg.next_send_at || msg.scheduled_at, msg.recurrence_type)
-        this.db.prepare('UPDATE scheduled_messages SET next_send_at = ? WHERE id = ?').run(nextTime.toISOString(), msg.id)
-        this.scheduleMessage({ ...msg, next_send_at: nextTime.toISOString() })
-      } else {
-        this.db.prepare('UPDATE scheduled_messages SET is_active = 0 WHERE id = ?').run(msg.id)
-        this.scheduledTasks.delete(msg.id)
-      }
-
-      this.mainWindow.webContents.send('scheduled:updated')
+      return true
     } catch (err) {
-      console.error(`Errore invio messaggio programmato ${msg.id}:`, err)
+      console.error(`[WA] scheduled send error ${msg.id}:`, err)
+      return false
     }
   }
 
-  calculateNextTime(lastTime, recurrence) {
-    const date = new Date(lastTime)
-    switch (recurrence) {
-      case 'daily': date.setDate(date.getDate() + 1); break
-      case 'weekly': date.setDate(date.getDate() + 7); break
-      case 'monthly': date.setMonth(date.getMonth() + 1); break
-    }
-    return date
-  }
+  // ---------- init client (idempotente) ----------
 
   async initializeClient(accountId) {
     if (this.clients.has(accountId)) return true
+    if (this.initializing.has(accountId)) return this.initializing.get(accountId)
 
+    const promise = this._doInitialize(accountId).finally(() => {
+      this.initializing.delete(accountId)
+    })
+    this.initializing.set(accountId, promise)
+    return promise
+  }
+
+  async _doInitialize(accountId) {
     const account = this.db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId)
     if (!account) return false
 
@@ -224,7 +230,8 @@ class WhatsAppManager {
         remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
       },
       puppeteer: {
-        headless: true, // Pairing completato, torniamo in background
+        headless: true,
+        protocolTimeout: 180_000, // 3 min — evita timeout su sync di chat con molti messaggi
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -240,192 +247,240 @@ class WhatsAppManager {
       }
     })
 
+    // CRUCIALE: registra il client nella mappa SUBITO, prima di async/await,
+    // così le chiamate concorrenti vedono che esiste e non creano un secondo client.
+    this.clients.set(accountId, client)
+
     client.on('qr', (qr) => {
-      console.log(`[WA] QR Code received for account ${accountId}`)
-      this.mainWindow.webContents.send('wa:qr', { accountId, qr })
+      console.log(`[WA] QR per account ${accountId}`)
+      this.safeSend('wa:qr', { accountId, qr })
     })
 
     client.on('loading_screen', (percent, message) => {
-      console.log(`[WA] Loading: ${percent}% - ${message}`)
-      this.mainWindow.webContents.send('wa:loading', { accountId, percent, message })
+      console.log(`[WA] Loading ${percent}% - ${message}`)
+      this.safeSend('wa:loading', { accountId, percent, message })
     })
 
     client.on('ready', async () => {
       const info = client.info
       this.db.prepare('UPDATE accounts SET phone_number = ?, name = ?, is_active = 1 WHERE id = ?')
         .run(info.wid.user, info.pushname || '', accountId)
-      
-      this.mainWindow.webContents.send('wa:ready', { accountId, info })
-      
-      // Priorità allo storico recente per mostrare subito qualcosa all'utente
-      this.syncRecentHistory(accountId, client).then(() => {
-        this.syncContacts(accountId, client)
-      }).catch(err => console.error('Sync error:', err))
+      this.safeSend('wa:ready', { accountId, info: { pushname: info.pushname, wid: info.wid } })
+
+      // Sync una sola volta (lock interno)
+      this.runSync(accountId, client).catch(err => console.error('[WA] sync error:', err))
     })
 
     client.on('message', async (msg) => {
-      await this.handleIncomingMessage(accountId, msg)
+      await this.handleIncomingMessage(accountId, msg, { incrementUnread: true, downloadMedia: true })
     })
 
     client.on('message_create', async (msg) => {
-      if (msg.fromMe) {
-        await this.handleIncomingMessage(accountId, msg)
-      }
+      if (msg.fromMe) await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: true })
     })
 
     client.on('disconnected', (reason) => {
+      console.log(`[WA] Account ${accountId} disconnesso:`, reason)
       this.db.prepare('UPDATE accounts SET is_active = 0 WHERE id = ?').run(accountId)
-      this.mainWindow.webContents.send('wa:disconnected', { accountId, reason })
+      this.safeSend('wa:disconnected', { accountId, reason })
       this.clients.delete(accountId)
     })
 
-    this.clients.set(accountId, client)
-    
     try {
-      console.log(`[WA] Starting initialization for account ${accountId}...`)
+      console.log(`[WA] Init account ${accountId}...`)
       await client.initialize()
     } catch (err) {
-      console.error(`[WA] Critical error during initialization of account ${accountId}:`, err)
-      this.mainWindow.webContents.send('wa:error', { accountId, error: err.message })
+      console.error(`[WA] init critico account ${accountId}:`, err)
+      this.clients.delete(accountId)
+      this.safeSend('wa:error', { accountId, error: err.message })
+      return false
     }
-    
     return true
   }
 
+  // ---------- sync (con lock) ----------
+
+  async runSync(accountId, client) {
+    if (this.syncing.has(accountId)) {
+      console.log(`[WA] Sync già in corso per ${accountId}, skip`)
+      return
+    }
+    this.syncing.add(accountId)
+    try {
+      await this.syncRecentHistory(accountId, client)
+      await this.syncContacts(accountId, client)
+    } finally {
+      this.syncing.delete(accountId)
+    }
+  }
+
+  async syncRecentHistory(accountId, client) {
+    console.log(`[WA] Sync chats per account ${accountId}...`)
+    let chats = []
+    try { chats = await client.getChats() } catch (err) {
+      console.error('[WA] getChats failed:', err)
+      return
+    }
+    console.log(`[WA] ${chats.length} chats da indicizzare`)
+
+    const upsertChat = this.db.prepare(`
+      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, is_group, unread_count, last_message_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
+        name = CASE WHEN excluded.name != '' THEN excluded.name ELSE contacts.name END,
+        is_group = excluded.is_group,
+        unread_count = excluded.unread_count,
+        last_message_at = COALESCE(excluded.last_message_at, contacts.last_message_at)
+    `)
+
+    let processed = 0
+    for (const chat of chats) {
+      const waId = this.toIdString(chat.id)
+      if (!waId) continue
+      try {
+        const lastTs = chat.lastMessage ? new Date(chat.lastMessage.timestamp * 1000).toISOString() : null
+        upsertChat.run(accountId, waId, chat.name || '', '', chat.isGroup ? 1 : 0, chat.unreadCount || 0, lastTs)
+
+        // Solo gli ultimi 50 messaggi per chat: WhatsApp Web fa lo stesso, il resto on-demand
+        const messages = await chat.fetchMessages({ limit: 50 })
+        for (const msg of messages) {
+          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+        }
+      } catch (err) {
+        console.error(`[WA] chat ${waId} error:`, err.message)
+      }
+      processed++
+      if (processed % 25 === 0) {
+        this.safeSend('wa:sync-progress', { accountId, processed, total: chats.length })
+      }
+    }
+    console.log(`[WA] Sync chats completato (${processed}/${chats.length})`)
+    this.safeSend('wa:history-synced', { accountId })
+  }
+
   async syncContacts(accountId, client) {
-    const waContacts = await client.getContacts()
+    let waContacts = []
+    try { waContacts = await client.getContacts() } catch (err) {
+      console.error('[WA] getContacts failed:', err)
+      return
+    }
+
     const upsertContact = this.db.prepare(`
       INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, profile_pic_path, is_group)
       VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
-      name=excluded.name, push_name=excluded.push_name, phone_number=excluded.phone_number,
-      profile_pic_path=COALESCE(excluded.profile_pic_path, contacts.profile_pic_path),
-      is_group=excluded.is_group
+        name = CASE WHEN excluded.name != '' THEN excluded.name ELSE contacts.name END,
+        push_name = CASE WHEN excluded.push_name != '' THEN excluded.push_name ELSE contacts.push_name END,
+        phone_number = CASE WHEN excluded.phone_number != '' THEN excluded.phone_number ELSE contacts.phone_number END,
+        profile_pic_path = COALESCE(excluded.profile_pic_path, contacts.profile_pic_path),
+        is_group = excluded.is_group
     `)
 
+    const avatarDir = path.join(app.getPath('userData'), 'avatars')
+    if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true })
+
     for (const contact of waContacts) {
-      if (contact.isMyContact || contact.isGroup) {
-        let localAvatarPath = null
-        try { 
-          const url = await contact.getProfilePicUrl() 
+      if (!(contact.isMyContact || contact.isGroup)) continue
+      const waId = this.toIdString(contact.id)
+      if (!waId) continue
+
+      // Avatar: scaricalo solo se non lo abbiamo già (lazy)
+      let localAvatarPath = null
+      const filename = `${waId.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`
+      const fullPath = path.join(avatarDir, filename)
+      if (fs.existsSync(fullPath)) {
+        localAvatarPath = fullPath
+      } else {
+        try {
+          const url = await contact.getProfilePicUrl()
           if (url) {
-            // Scarica avatar se non lo abbiamo o è cambiato
-            const avatarDir = path.join(app.getPath('userData'), 'avatars')
-            if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true })
-            const filename = `${contact.id._serialized.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`
-            localAvatarPath = path.join(avatarDir, filename)
-            
-            // Per ora lo scarichiamo sempre o potremmo ottimizzare
             const response = await fetch(url)
             const buffer = await response.arrayBuffer()
-            fs.writeFileSync(localAvatarPath, Buffer.from(buffer))
+            fs.writeFileSync(fullPath, Buffer.from(buffer))
+            localAvatarPath = fullPath
           }
-        } catch {}
-
-        upsertContact.run(
-          accountId,
-          contact.id._serialized,
-          contact.name || '',
-          contact.pushname || '',
-          contact.number || '',
-          localAvatarPath,
-          contact.isGroup ? 1 : 0
-        )
+        } catch { /* niente avatar, ok */ }
       }
-    }
-    
-    this.mainWindow.webContents.send('wa:contacts-synced', accountId)
-  }
 
-  async syncRecentHistory(accountId, client) {
-    console.log(`[WA] Syncing recent history for account ${accountId}...`)
-    const chats = await client.getChats()
-    // Prendi le ultime 100 chat attive
-    const recentChats = chats.slice(0, 100)
-    
-    for (const chat of recentChats) {
       try {
-        // Sincronizza il conteggio non letti reale di WhatsApp
-        this.db.prepare('UPDATE contacts SET unread_count = ? WHERE account_id = ? AND whatsapp_id = ?')
-          .run(chat.unreadCount || 0, accountId, chat.id._serialized)
-
-        const messages = await chat.fetchMessages({ limit: 150 })
-        for (const msg of messages) {
-          await this.handleIncomingMessage(accountId, msg, false) // false = non incrementare badge durante sync
-        }
+        upsertContact.run(
+          accountId, waId,
+          contact.name || '', contact.pushname || '', contact.number || '',
+          localAvatarPath, contact.isGroup ? 1 : 0
+        )
       } catch (err) {
-        console.error(`Error fetching messages for chat ${chat.id._serialized}:`, err)
+        console.error('[WA] upsertContact error:', err.message)
       }
     }
-    console.log(`[WA] History sync complete for account ${accountId}`)
-    this.mainWindow.webContents.send('wa:history-synced', accountId)
+    this.safeSend('wa:contacts-synced', accountId)
   }
 
-  async handleIncomingMessage(accountId, msg, shouldIncrementUnread = true) {
-    // Evita duplicati basandosi sull'ID di WhatsApp
-    const existing = this.db.prepare('SELECT id FROM messages WHERE wa_message_id = ?').get(msg.id.id)
+  // ---------- handle messaggio (incoming/outgoing/sync) ----------
+
+  async handleIncomingMessage(accountId, msg, opts = {}) {
+    const incrementUnread = opts.incrementUnread !== false
+    const downloadMedia = opts.downloadMedia === true
+
+    if (!msg?.id?.id) return
+    const existing = this.db.prepare('SELECT id FROM messages WHERE account_id = ? AND wa_message_id = ?')
+      .get(accountId, msg.id.id)
     if (existing) return
 
-    // Trova o crea contatto nel DB
-    const contactWaId = msg.fromMe ? msg.to : msg.from
+    // Risolvi chat (single source of truth per whatsapp_id)
+    let chatWaId, chatName = '', chatIsGroup = 0
+    try {
+      const chat = await msg.getChat()
+      chatWaId = this.toIdString(chat.id)
+      chatName = chat.name || ''
+      chatIsGroup = chat.isGroup ? 1 : 0
+    } catch (err) {
+      const fallback = msg.fromMe ? msg.to : msg.from
+      chatWaId = this.toIdString(fallback)
+    }
+    if (!chatWaId) return
+
     let contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id = ? AND whatsapp_id = ?')
-      .get(accountId, contactWaId)
+      .get(accountId, chatWaId)
 
     if (!contact) {
       try {
-        const chat = await msg.getChat()
-        this.db.prepare(`
-          INSERT OR IGNORE INTO contacts (account_id, whatsapp_id, name, is_group)
-          VALUES (?, ?, ?, ?)
-        `).run(accountId, chat.id._serialized, chat.name || '', chat.isGroup ? 1 : 0)
-        
+        this.db.prepare('INSERT OR IGNORE INTO contacts (account_id, whatsapp_id, name, is_group) VALUES (?, ?, ?, ?)')
+          .run(accountId, chatWaId, chatName, chatIsGroup)
         contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id = ? AND whatsapp_id = ?')
-          .get(accountId, contactWaId)
+          .get(accountId, chatWaId)
       } catch (err) {
-        console.error('Error creating contact from message:', err)
-        return
+        console.error('[WA] insert contact:', err.message)
       }
     }
-
     if (!contact) return
 
-    // Inserisci messaggio
     const timestamp = new Date(msg.timestamp * 1000).toISOString()
-    let mediaPath = null
-    let mediaMime = null
-    let mediaFilename = null
 
-    if (msg.hasMedia) {
-      try {
-        const media = await msg.downloadMedia()
-        if (media) {
-          const mediaDir = path.join(app.getPath('userData'), 'media', accountId.toString())
-          if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true })
-          
-          const filename = `${msg.id.id}.${media.mimetype.split('/')[1].split(';')[0]}`
-          mediaPath = path.join(mediaDir, filename)
-          fs.writeFileSync(mediaPath, media.data, 'base64')
-          mediaMime = media.mimetype
-          mediaFilename = media.filename || filename
-        }
-      } catch (err) {
-        console.error('[WA] Media download error:', err)
+    // Media: durante sync NON scarichiamo, salviamo solo il flag.
+    // L'on-demand handler `wa:downloadMedia` farà il fetch quando il renderer apre il messaggio.
+    let mediaPath = null, mediaMime = null, mediaFilename = null
+    if (msg.hasMedia && downloadMedia) {
+      const saved = await this.downloadAndSaveMedia(accountId, msg)
+      if (saved) {
+        mediaPath = saved.path
+        mediaMime = saved.mime
+        mediaFilename = saved.filename
       }
     }
 
-    // Ottieni il nome del mittente reale se in un gruppo
+    // Sender name nei gruppi (robusto: authorId può essere oggetto)
     let senderName = null
     if (contact.is_group && !msg.fromMe) {
-      const authorId = msg.author || (msg.id && msg.id.participant) || (msg._data && msg._data.author) || (msg._data && msg._data.participant)
+      const rawAuthor = msg.author || msg.id?.participant || msg._data?.author || msg._data?.participant
+      const authorId = this.toIdString(rawAuthor)
       if (authorId) {
         try {
           const client = this.clients.get(accountId)
           if (client) {
             const senderContact = await client.getContactById(authorId)
-            senderName = senderContact.pushname || senderContact.name || senderContact.number || authorId.split('@')[0]
+            senderName = senderContact?.pushname || senderContact?.name || senderContact?.number || authorId.split('@')[0]
           }
-        } catch (e) {
-          console.error('Error fetching group sender:', e)
+        } catch {
           senderName = authorId.split('@')[0]
         }
       } else {
@@ -433,42 +488,66 @@ class WhatsAppManager {
       }
     }
 
-    const msgData = {
-      account_id: accountId,
-      contact_id: contact.id,
-      wa_message_id: msg.id.id,
-      body: msg.body || '',
-      is_from_me: msg.fromMe ? 1 : 0,
-      timestamp: timestamp,
-      media_type: msg.hasMedia ? msg.type : 'text',
-      media_path: mediaPath,
-      media_mime: mediaMime,
-      media_filename: mediaFilename,
-      sender_name: senderName,
-      status: 'received'
+    let result
+    try {
+      result = this.db.prepare(`
+        INSERT INTO messages (account_id, contact_id, wa_message_id, body, media_type, media_path, media_mime, media_filename, is_from_me, timestamp, status, sender_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        accountId, contact.id, msg.id.id,
+        msg.body || '',
+        msg.hasMedia ? msg.type : 'text',
+        mediaPath, mediaMime, mediaFilename,
+        msg.fromMe ? 1 : 0, timestamp, 'received', senderName
+      )
+    } catch (err) {
+      // Race su UNIQUE: ignora silenziosamente
+      if (!String(err.message).includes('UNIQUE')) console.error('[WA] insert message:', err.message)
+      return
     }
 
-    const result = this.db.prepare(`
-      INSERT INTO messages (account_id, contact_id, wa_message_id, body, media_type, media_path, media_mime, media_filename, is_from_me, timestamp, status, sender_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      msgData.account_id, msgData.contact_id, msgData.wa_message_id,
-      msgData.body, msgData.media_type, msgData.media_path, msgData.media_mime, msgData.media_filename,
-      msgData.is_from_me, msgData.timestamp, msgData.status, msgData.sender_name
-    )
-
-    // Aggiorna metadati contatto (ultimo messaggio, ora, contatore non letti)
     this.db.prepare(`
-      UPDATE contacts SET 
-      last_message_at = ?, 
-      unread_count = CASE WHEN ? = 0 AND ? = 1 THEN unread_count + 1 ELSE unread_count END
+      UPDATE contacts SET
+        last_message_at = ?,
+        unread_count = CASE WHEN ? = 0 AND ? = 1 THEN unread_count + 1 ELSE unread_count END
       WHERE id = ?
-    `).run(timestamp, msgData.is_from_me, shouldIncrementUnread ? 1 : 0, contact.id)
+    `).run(timestamp, msg.fromMe ? 1 : 0, incrementUnread ? 1 : 0, contact.id)
 
-    this.mainWindow.webContents.send('wa:message', {
+    this.safeSend('wa:message', {
       accountId,
-      message: { ...msgData, id: result.lastInsertRowid }
+      message: {
+        id: result.lastInsertRowid,
+        account_id: accountId,
+        contact_id: contact.id,
+        wa_message_id: msg.id.id,
+        body: msg.body || '',
+        is_from_me: msg.fromMe ? 1 : 0,
+        timestamp,
+        media_type: msg.hasMedia ? msg.type : 'text',
+        media_path: mediaPath,
+        media_mime: mediaMime,
+        media_filename: mediaFilename,
+        sender_name: senderName,
+        status: 'received'
+      }
     })
+  }
+
+  async downloadAndSaveMedia(accountId, msg) {
+    try {
+      const media = await msg.downloadMedia()
+      if (!media) return null
+      const mediaDir = path.join(app.getPath('userData'), 'media', accountId.toString())
+      if (!fs.existsSync(mediaDir)) fs.mkdirSync(mediaDir, { recursive: true })
+      const ext = (media.mimetype.split('/')[1] || 'bin').split(';')[0]
+      const filename = `${msg.id.id}.${ext}`
+      const fullPath = path.join(mediaDir, filename)
+      fs.writeFileSync(fullPath, media.data, 'base64')
+      return { path: fullPath, mime: media.mimetype, filename: media.filename || filename }
+    } catch (err) {
+      console.error('[WA] media download error:', err.message)
+      return null
+    }
   }
 }
 

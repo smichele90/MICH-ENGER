@@ -1,5 +1,6 @@
 import React from 'react'
-import { Sun, Moon, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
+import ThemeToggle from './ThemeToggle'
 
 export default function AccountSwitcher({ accounts, activeAccount, onSelect, onAdd, onDelete, theme, onToggleTheme }) {
   const getInitials = (account) => {
@@ -46,9 +47,7 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
       <div style={{ flex: 1 }} />
 
       {/* Theme toggle in basso */}
-      <button className="theme-toggle" onClick={onToggleTheme} title={theme === 'dark' ? 'Tema chiaro' : 'Tema scuro'}>
-        {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-      </button>
+      <ThemeToggle theme={theme} onToggle={onToggleTheme} />
     </div>
   )
 }

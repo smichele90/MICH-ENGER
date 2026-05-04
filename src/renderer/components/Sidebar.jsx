@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { Search, FolderPlus, ChevronRight, Users, User, CheckSquare, Clock, MessageSquare, Hash, MailCheck, RefreshCw } from 'lucide-react'
 import FolderTree from './FolderTree'
 
-export default function Sidebar({ accountId, activeContact, activeFolder, activeView, onSelectContact, onSelectFolder, onNavigate }) {
+export default function Sidebar({ accountId, activeContact, activeFolder, activeView, onSelectContact, onSelectFolder, onNavigate, onManageFolder }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [contacts, setContacts] = useState([])
   const [groups, setGroups] = useState([])
@@ -178,6 +178,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
               activeFolder={activeFolder}
               onSelect={onSelectFolder}
               onRefresh={refreshFolders}
+              onManage={onManageFolder}
             />
           )}
         </div>

@@ -69,14 +69,31 @@ contextBridge.exposeInMainWorld('api', {
   resetHistory: (accountId) => ipcRenderer.invoke('wa:resetHistory', accountId),
   syncChatHistory: (accountId, contactId) => ipcRenderer.invoke('wa:syncChatHistory', accountId, contactId),
   sendMessage: (accountId, contactId, body, options) => ipcRenderer.invoke('wa:sendMessage', accountId, contactId, body, options),
+  downloadMedia: (accountId, messageDbId) => ipcRenderer.invoke('wa:downloadMedia', accountId, messageDbId),
 
   // Event listeners (per messaggi WhatsApp in tempo reale)
   onWhatsAppEvent: (channel, callback) => {
-    const validChannels = ['wa:qr', 'wa:ready', 'wa:message', 'wa:disconnected', 'wa:auth-failure', 'wa:loading']
+    const validChannels = ['wa:qr', 'wa:ready', 'wa:message', 'wa:disconnected', 'wa:auth-failure', 'wa:loading', 'wa:contacts-synced', 'wa:contacts-updated', 'wa:history-synced', 'wa:error', 'wa:sync-progress']
     if (validChannels.includes(channel)) {
       const listener = (_, ...args) => callback(...args)
       ipcRenderer.on(channel, listener)
       return () => ipcRenderer.removeListener(channel, listener)
     }
-  }
+  },
+
+  // Generic event listener (scheduled:updated, notification:task-click, window:maxState, ...)
+  on: (channel, callback) => {
+    const validChannels = ['scheduled:updated', 'notification:task-click', 'window:maxState']
+    if (validChannels.includes(channel)) {
+      const listener = (_, ...args) => callback(...args)
+      ipcRenderer.on(channel, listener)
+      return () => ipcRenderer.removeListener(channel, listener)
+    }
+  },
+
+  // Notifications
+  testNotification: (title, body) => ipcRenderer.invoke('notify:test', title, body),
+
+  // Maintenance
+  dedupeContacts: () => ipcRenderer.invoke('contacts:dedupe')
 })

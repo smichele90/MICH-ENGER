@@ -1,6 +1,7 @@
 const { ipcMain, shell } = require('electron')
+const { dedupeContacts } = require('./database')
 
-function registerIpcHandlers(db, waManager) {
+function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   // SETTINGS
   ipcMain.handle('settings:get', (_, key) => {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key)
@@ -130,9 +131,9 @@ function registerIpcHandlers(db, waManager) {
       .run(data.account_id, data.target_type, data.target_id, data.target_name || '', data.body || '', data.media_type || 'text',
         data.media_path || null, data.scheduled_at, data.recurrence_type || 'once', data.recurrence_rule || null, data.next_send_at || data.scheduled_at)
     
-    const newMsg = { id: result.lastInsertRowid, ...data }
-    if (waManager) waManager.scheduleMessage(newMsg)
-    
+    const newMsg = db.prepare('SELECT * FROM scheduled_messages WHERE id = ?').get(result.lastInsertRowid)
+    if (scheduler) scheduler.scheduleOne(newMsg)
+
     return { id: result.lastInsertRowid }
   })
   ipcMain.handle('scheduled:update', (_, id, data) => {
@@ -140,9 +141,14 @@ function registerIpcHandlers(db, waManager) {
     Object.entries(data).forEach(([k, v]) => { if (k !== 'id') { fields.push(`${k} = ?`); values.push(v) } })
     values.push(id)
     db.prepare(`UPDATE scheduled_messages SET ${fields.join(', ')} WHERE id = ?`).run(...values)
+    if (scheduler) {
+      const updated = db.prepare('SELECT * FROM scheduled_messages WHERE id = ?').get(id)
+      scheduler.reschedule(updated)
+    }
     return true
   })
   ipcMain.handle('scheduled:delete', (_, id) => {
+    if (scheduler) scheduler.cancelOne(id)
     db.prepare('DELETE FROM scheduled_messages WHERE id = ?').run(id)
     return true
   })
@@ -207,6 +213,15 @@ function registerIpcHandlers(db, waManager) {
 
   ipcMain.handle('file:open', async (_, filePath) => {
     return shell.openPath(filePath)
+  })
+
+  // MAINTENANCE
+  ipcMain.handle('contacts:dedupe', () => dedupeContacts())
+
+  // NOTIFICATIONS
+  ipcMain.handle('notify:test', (_, title, body) => {
+    if (notificationManager) notificationManager.notify({ title: title || 'Test', body: body || 'Notifica di prova' })
+    return true
   })
 }
 

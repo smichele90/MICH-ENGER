@@ -1,11 +1,15 @@
 const { app, BrowserWindow, ipcMain, nativeTheme, protocol } = require('electron')
 const path = require('path')
-const { initDatabase } = require('./database')
+const { initDatabase, dedupeContacts } = require('./database')
 const { registerIpcHandlers } = require('./ipc-handlers')
 const { WhatsAppManager } = require('./whatsapp')
+const { Scheduler } = require('./scheduler')
+const { NotificationManager } = require('./notification-manager')
 
 let mainWindow = null
 let waManager = null
+let scheduler = null
+let notificationManager = null
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -23,7 +27,10 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      webSecurity: false
+      // In dev (Vite dev-server su http://) il caricamento di file:/// per media/avatar
+      // viene bloccato da webSecurity. In produzione il renderer usa file:// quindi
+      // il blocco non si applica e webSecurity può rimanere attivo.
+      webSecurity: process.env.NODE_ENV !== 'development'
     }
   })
 
@@ -42,6 +49,13 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
+  const sendMaxState = () => {
+    try { mainWindow?.webContents.send('window:maxState', mainWindow.isMaximized()) } catch {}
+  }
+  mainWindow.on('maximize', sendMaxState)
+  mainWindow.on('unmaximize', sendMaxState)
+  mainWindow.on('resize', sendMaxState)
 
   return mainWindow
 }
@@ -76,14 +90,31 @@ app.whenReady().then(() => {
   // Inizializza database
   const db = initDatabase()
 
+  // Pulizia contatti duplicati (legacy da versioni precedenti)
+  try {
+    const { merged } = dedupeContacts()
+    if (merged > 0) console.log(`[DB] Dedupe: uniti ${merged} contatti duplicati`)
+  } catch (e) { console.error('[DB] dedupe error:', e) }
+
   // Crea finestra principale
   const window = createWindow()
 
   // Inizializza WhatsApp Manager
   waManager = new WhatsAppManager(db, window)
 
+  // Notification Manager (notifiche desktop)
+  notificationManager = new NotificationManager(db, window)
+
+  // Scheduler messaggi programmati
+  scheduler = new Scheduler(db, window, (msg) => waManager.sendScheduledTo(msg))
+  scheduler.setNotificationManager(notificationManager)
+  scheduler.start()
+
+  // Avvia loop notifiche task
+  notificationManager.startTaskWatcher()
+
   // Registra IPC handlers
-  registerIpcHandlers(db, waManager)
+  registerIpcHandlers(db, waManager, scheduler, notificationManager)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -96,4 +127,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
+})
+
+app.on('before-quit', () => {
+  try { scheduler?.shutdown() } catch {}
+  try { notificationManager?.stop() } catch {}
 })
