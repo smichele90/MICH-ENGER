@@ -136,23 +136,36 @@ class WhatsAppManager {
         const row = this.db.prepare('SELECT * FROM messages WHERE id = ?').get(messageDbId)
         if (!row) return { success: false, error: 'Messaggio non trovato' }
         if (row.media_path && fs.existsSync(row.media_path)) {
-          return { success: true, media_path: row.media_path }
+          return { success: true, media_path: row.media_path, media_mime: row.media_mime, media_filename: row.media_filename }
         }
 
-        const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(row.contact_id)
-        if (!contact) return { success: false, error: 'Contatto non trovato' }
+        // Strategia 1 (preferita): getMessageById con il serialized id
+        let msg = null
+        if (row.wa_serialized_id) {
+          try {
+            msg = await client.getMessageById(row.wa_serialized_id)
+          } catch (e) {
+            console.warn('[WA] getMessageById failed, fallback fetchMessages:', e.message)
+          }
+        }
 
-        // Trova il messaggio originale via fetch (limit alto per messaggi vecchi)
-        const chat = await client.getChatById(contact.whatsapp_id)
-        const messages = await chat.fetchMessages({ limit: 200 })
-        const msg = messages.find(m => m.id?.id === row.wa_message_id)
-        if (!msg || !msg.hasMedia) return { success: false, error: 'Media non disponibile' }
+        // Strategia 2 (fallback): scorri la chat con limite generoso
+        if (!msg) {
+          const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(row.contact_id)
+          if (!contact) return { success: false, error: 'Contatto non trovato' }
+          const chat = await client.getChatById(contact.whatsapp_id)
+          const messages = await chat.fetchMessages({ limit: 1000 })
+          msg = messages.find(m => m.id?._serialized === row.wa_serialized_id || m.id?.id === row.wa_message_id)
+        }
+
+        if (!msg) return { success: false, error: 'Messaggio non trovato sul server WhatsApp' }
+        if (!msg.hasMedia) return { success: false, error: 'Il messaggio non contiene media' }
 
         const saved = await this.downloadAndSaveMedia(accountId, msg)
         if (!saved) return { success: false, error: 'Download fallito' }
 
-        this.db.prepare('UPDATE messages SET media_path = ?, media_mime = ?, media_filename = ? WHERE id = ?')
-          .run(saved.path, saved.mime, saved.filename, messageDbId)
+        this.db.prepare('UPDATE messages SET media_path = ?, media_mime = ?, media_filename = ?, media_size = ? WHERE id = ?')
+          .run(saved.path, saved.mime, saved.filename, saved.size || row.media_size, messageDbId)
         return { success: true, media_path: saved.path, media_mime: saved.mime, media_filename: saved.filename }
       } catch (err) {
         console.error('[WA] downloadMedia error:', err)
@@ -488,16 +501,33 @@ class WhatsAppManager {
       }
     }
 
+    // Estrai metadati media (durata audio/video, dimensione, eventuale thumbnail base64)
+    let mediaDuration = null, mediaSize = null, mediaWidth = null, mediaHeight = null, mediaThumb = null
+    if (msg.hasMedia) {
+      const data = msg._data || {}
+      mediaDuration = (typeof data.duration === 'number') ? Math.round(data.duration) : null
+      mediaSize = data.size || data.fileSize || null
+      mediaWidth = data.width || null
+      mediaHeight = data.height || null
+      // Per immagini/video WhatsApp include una micro-thumbnail base64 (~5-10kb)
+      const mt = (msg.type || '').toLowerCase()
+      if ((mt === 'image' || mt === 'video' || mt === 'sticker') && typeof data.body === 'string' && data.body.length < 50_000 && data.body.length > 100) {
+        // body è base64 jpeg per immagini/video
+        mediaThumb = `data:image/jpeg;base64,${data.body}`
+      }
+    }
+
     let result
     try {
       result = this.db.prepare(`
-        INSERT INTO messages (account_id, contact_id, wa_message_id, body, media_type, media_path, media_mime, media_filename, is_from_me, timestamp, status, sender_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (account_id, contact_id, wa_message_id, wa_serialized_id, body, media_type, media_path, media_mime, media_filename, media_thumb, media_duration, media_size, media_width, media_height, is_from_me, timestamp, status, sender_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        accountId, contact.id, msg.id.id,
+        accountId, contact.id, msg.id.id, msg.id._serialized || null,
         msg.body || '',
         msg.hasMedia ? msg.type : 'text',
         mediaPath, mediaMime, mediaFilename,
+        mediaThumb, mediaDuration, mediaSize, mediaWidth, mediaHeight,
         msg.fromMe ? 1 : 0, timestamp, 'received', senderName
       )
     } catch (err) {
@@ -520,6 +550,7 @@ class WhatsAppManager {
         account_id: accountId,
         contact_id: contact.id,
         wa_message_id: msg.id.id,
+        wa_serialized_id: msg.id._serialized || null,
         body: msg.body || '',
         is_from_me: msg.fromMe ? 1 : 0,
         timestamp,
@@ -527,6 +558,11 @@ class WhatsAppManager {
         media_path: mediaPath,
         media_mime: mediaMime,
         media_filename: mediaFilename,
+        media_thumb: mediaThumb,
+        media_duration: mediaDuration,
+        media_size: mediaSize,
+        media_width: mediaWidth,
+        media_height: mediaHeight,
         sender_name: senderName,
         status: 'received'
       }
@@ -543,7 +579,8 @@ class WhatsAppManager {
       const filename = `${msg.id.id}.${ext}`
       const fullPath = path.join(mediaDir, filename)
       fs.writeFileSync(fullPath, media.data, 'base64')
-      return { path: fullPath, mime: media.mimetype, filename: media.filename || filename }
+      const stat = fs.statSync(fullPath)
+      return { path: fullPath, mime: media.mimetype, filename: media.filename || filename, size: stat.size }
     } catch (err) {
       console.error('[WA] media download error:', err.message)
       return null

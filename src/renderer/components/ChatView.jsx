@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, DownloadCloud, FolderPlus, Download } from 'lucide-react'
+import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, DownloadCloud, FolderPlus } from 'lucide-react'
 import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
+import MediaPreview from './MediaPreview'
 
 export default function ChatView({ contact, accountId }) {
   const [messages, setMessages] = useState([])
@@ -226,52 +227,16 @@ export default function ChatView({ contact, accountId }) {
               )}
               <div className={`message ${msg.is_from_me ? 'message--me' : 'message--other'}`}>
                 <div className="message__bubble">
-                  {(msg.media_type === 'image' || msg.media_type === 'sticker') && (
-                    msg.media_path ? (
-                      <div style={{ marginBottom: 4, borderRadius: 8, overflow: 'hidden' }}>
-                        <img
-                          src={`file:///${msg.media_path.replace(/\\/g, '/')}`}
-                          alt="Media"
-                          style={{ maxWidth: msg.media_type === 'sticker' ? 140 : '100%', display: 'block', cursor: 'pointer' }}
-                          onClick={() => setPreviewImage(`file:///${msg.media_path.replace(/\\/g, '/')}`)}
-                        />
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleDownloadMedia(msg.id)}
-                        disabled={downloadingMedia.has(msg.id)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 8, padding: '24px 20px',
-                          background: 'rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 4,
-                          fontSize: 12, cursor: 'pointer', border: 'none', color: 'inherit',
-                          minWidth: 180, justifyContent: 'center'
-                        }}
-                      >
-                        {downloadingMedia.has(msg.id)
-                          ? <>⏳ Scarico…</>
-                          : <><Download size={16} /> Scarica {msg.media_type}</>}
-                      </button>
-                    )
+                  {msg.media_type && msg.media_type !== 'text' && (
+                    <MediaPreview
+                      msg={msg}
+                      downloading={downloadingMedia.has(msg.id)}
+                      onDownload={handleDownloadMedia}
+                      onPreviewImage={setPreviewImage}
+                      onOpenFile={(p) => window.api.openFile(p)}
+                    />
                   )}
-                  {msg.media_type !== 'text' && msg.media_type !== 'image' && msg.media_type !== 'sticker' && (
-                    <div
-                      onClick={() => msg.media_path ? window.api.openFile(msg.media_path) : handleDownloadMedia(msg.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px',
-                        background: 'rgba(0,0,0,0.1)', borderRadius: 8, marginBottom: 4, fontSize: 13, cursor: 'pointer'
-                      }}
-                    >
-                      {msg.media_path ? <Paperclip size={14} /> : <Download size={14} />}
-                      <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {downloadingMedia.has(msg.id)
-                          ? 'Scarico…'
-                          : msg.media_path
-                            ? (msg.media_filename || `Apri ${msg.media_type}`)
-                            : `Scarica ${msg.media_type}`}
-                      </span>
-                    </div>
-                  )}
-                  <div style={{ wordBreak: 'break-word' }}>{msg.body}</div>
+                  {msg.body && <div style={{ wordBreak: 'break-word' }}>{msg.body}</div>}
                   <div className="message__actions">
                     <button
                       className="message__action-btn"

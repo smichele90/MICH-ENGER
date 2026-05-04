@@ -18,6 +18,14 @@ function initDatabase() {
   try { db.prepare('ALTER TABLE messages ADD COLUMN sender_name TEXT').run() } catch (e) {}
   try { db.prepare('ALTER TABLE tasks ADD COLUMN recurrence_type TEXT DEFAULT "once"').run() } catch (e) {}
   try { db.prepare('ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT').run() } catch (e) {}
+  // Metadati media (popolati dal sync, usati dal renderer per placeholder stile WA Web)
+  try { db.prepare('ALTER TABLE messages ADD COLUMN wa_serialized_id TEXT').run() } catch (e) {}
+  try { db.prepare('ALTER TABLE messages ADD COLUMN media_thumb TEXT').run() } catch (e) {}        // base64 dataURL low-res
+  try { db.prepare('ALTER TABLE messages ADD COLUMN media_duration INTEGER').run() } catch (e) {} // secondi (audio/video)
+  try { db.prepare('ALTER TABLE messages ADD COLUMN media_size INTEGER').run() } catch (e) {}    // byte
+  try { db.prepare('ALTER TABLE messages ADD COLUMN media_width INTEGER').run() } catch (e) {}
+  try { db.prepare('ALTER TABLE messages ADD COLUMN media_height INTEGER').run() } catch (e) {}
+  try { db.prepare('CREATE INDEX IF NOT EXISTS idx_messages_serialized ON messages(wa_serialized_id)').run() } catch (e) {}
 
   return db
 }
