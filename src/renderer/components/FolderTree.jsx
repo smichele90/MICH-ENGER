@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal, Users } from 'lucide-react'
 
-export default function FolderTree({ folders, activeFolder, onSelect, onRefresh, onManage, depth = 0 }) {
+export default function FolderTree({ folders, activeFolder, activeContact, onSelect, onSelectContact, onRefresh, onManage, depth = 0 }) {
   return (
     <div className={depth > 0 ? 'folder-children' : ''}>
       {folders.map(folder => (
@@ -9,7 +9,9 @@ export default function FolderTree({ folders, activeFolder, onSelect, onRefresh,
           key={folder.id}
           folder={folder}
           activeFolder={activeFolder}
+          activeContact={activeContact}
           onSelect={onSelect}
+          onSelectContact={onSelectContact}
           onRefresh={onRefresh}
           onManage={onManage}
           depth={depth}
@@ -19,19 +21,48 @@ export default function FolderTree({ folders, activeFolder, onSelect, onRefresh,
   )
 }
 
-function FolderNode({ folder, activeFolder, onSelect, onRefresh, onManage, depth }) {
+function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectContact, onRefresh, onManage, depth }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameValue, setRenameValue] = useState(folder.name)
   const [showNewSub, setShowNewSub] = useState(false)
   const [newSubName, setNewSubName] = useState('')
+  const [members, setMembers] = useState([])
+  const [hasLoadedMembers, setHasLoadedMembers] = useState(false)
 
   const hasChildren = folder.children && folder.children.length > 0
 
-  const handleToggle = (e) => {
+  useEffect(() => {
+    setRenameValue(folder.name)
+  }, [folder.name])
+
+  useEffect(() => {
+    if (isOpen && !hasLoadedMembers) {
+      fetchMembers()
+    }
+  }, [isOpen])
+
+  const fetchMembers = async () => {
+    if (!folder?.id) return
+    const data = await window.api.getFolderMembers(folder.id)
+    setMembers(data || [])
+    setHasLoadedMembers(true)
+  }
+
+  const handleToggle = async (e) => {
     e.stopPropagation()
-    setIsOpen(!isOpen)
+    const nextOpen = !isOpen
+    setIsOpen(nextOpen)
+    if (nextOpen && !hasLoadedMembers) {
+      await fetchMembers()
+    }
+  }
+
+  const handleSelectFolder = (e) => {
+    e.stopPropagation()
+    onSelect?.(folder)
+    setIsOpen(prev => !prev)
   }
 
   const handleRename = async () => {
@@ -61,25 +92,18 @@ function FolderNode({ folder, activeFolder, onSelect, onRefresh, onManage, depth
     <>
       <div
         className={`sidebar-item ${activeFolder?.id === folder.id ? 'sidebar-item--active' : ''}`}
-        onClick={() => onSelect(folder)}
+        onClick={handleSelectFolder}
         onContextMenu={(e) => { e.preventDefault(); setShowMenu(!showMenu) }}
         style={{ paddingLeft: 16 + depth * 8 }}
       >
-        {/* Chevron per espandere */}
-        {hasChildren ? (
-          <span className={`sidebar-item__chevron ${isOpen ? 'sidebar-item__chevron--open' : ''}`} onClick={handleToggle}>
-            <ChevronRight size={14} />
-          </span>
-        ) : (
-          <span style={{ width: 14 }} />
-        )}
+        <span className={`sidebar-item__chevron ${isOpen ? 'sidebar-item__chevron--open' : ''}`} onClick={handleToggle}>
+          <ChevronRight size={14} />
+        </span>
 
-        {/* Icona cartella */}
         <div className="sidebar-item__icon" style={{ color: folder.color || 'var(--text-muted)' }}>
           {isOpen ? <FolderOpen size={16} /> : <Folder size={16} />}
         </div>
 
-        {/* Nome o input rinomina */}
         {isRenaming ? (
           <input
             autoFocus
@@ -95,7 +119,6 @@ function FolderNode({ folder, activeFolder, onSelect, onRefresh, onManage, depth
           <span className="sidebar-item__label">{folder.name}</span>
         )}
 
-        {/* Menu azioni */}
         <button
           className="sidebar-section__action"
           onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
@@ -105,7 +128,6 @@ function FolderNode({ folder, activeFolder, onSelect, onRefresh, onManage, depth
         </button>
       </div>
 
-      {/* Context menu */}
       {showMenu && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setShowMenu(false)} />
@@ -127,12 +149,57 @@ function FolderNode({ folder, activeFolder, onSelect, onRefresh, onManage, depth
         </>
       )}
 
-      {/* Sub-cartelle */}
-      {isOpen && hasChildren && (
-        <FolderTree folders={folder.children} activeFolder={activeFolder} onSelect={onSelect} onRefresh={onRefresh} onManage={onManage} depth={depth + 1} />
+      {isOpen && (
+        <div className="folder-member-list">
+          {members.length === 0 ? (
+            <div className="folder-member-empty">Nessun contatto nella cartella.</div>
+          ) : (
+            members.map(member => (
+              <div
+                key={member.id}
+                className={`folder-member-item ${activeContact?.id === member.id ? 'folder-member-item--active' : ''}`}
+                onClick={() => onSelectContact?.(member)}
+              >
+                <div className="folder-member-item__avatar">
+                  {(member.profile_pic_path || member.profile_pic_url) ? (
+                    <img
+                      src={member.profile_pic_path ? `file:///${member.profile_pic_path.replace(/\\/g, '/')}` : member.profile_pic_url}
+                      alt=""
+                      onError={(e) => {
+                        if (member.profile_pic_path && member.profile_pic_url && e.target.src.startsWith('file:///')) {
+                          e.target.src = member.profile_pic_url
+                          return
+                        }
+                        e.target.style.display = 'none'
+                      }}
+                    />
+                  ) : (
+                    <Users size={16} />
+                  )}
+                </div>
+                <div className="folder-member-item__text">
+                  <div className="folder-member-item__name">{member.name || member.push_name || member.phone_number}</div>
+                  <div className="folder-member-item__subtext">{member.is_group ? 'Gruppo' : (member.phone_number || 'Contatto')}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       )}
 
-      {/* Input nuova sub-cartella */}
+      {isOpen && hasChildren && (
+        <FolderTree
+          folders={folder.children}
+          activeFolder={activeFolder}
+          activeContact={activeContact}
+          onSelect={onSelect}
+          onSelectContact={onSelectContact}
+          onRefresh={onRefresh}
+          onManage={onManage}
+          depth={depth + 1}
+        />
+      )}
+
       {showNewSub && (
         <div style={{ paddingLeft: 32 + depth * 8, paddingRight: 16, paddingTop: 2, paddingBottom: 2 }}>
           <input

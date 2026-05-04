@@ -8,8 +8,6 @@ import ScheduledList from './components/ScheduledList'
 import QRCodeModal from './components/QRCodeModal'
 import SearchOverlay from './components/SearchOverlay'
 import FolderContactManager from './components/FolderContactManager'
-import FolderView from './components/FolderView'
-
 export default function App() {
   const [theme, setTheme] = useState('dark')
   const [accounts, setAccounts] = useState([])
@@ -99,7 +97,6 @@ export default function App() {
   }
   const handleSelectFolder = (folder) => {
     setActiveFolder(folder)
-    setActiveContact(null)
   }
   const handleNavigate = (view, options = {}) => {
     setActiveView(view)
@@ -124,9 +121,6 @@ export default function App() {
       default:
         if (activeContact) {
           return <ChatView contact={activeContact} accountId={activeAccount?.id} />
-        }
-        if (activeFolder) {
-          return <FolderView folder={activeFolder} accountId={activeAccount?.id} onSelectContact={handleSelectContact} />
         }
         return (
           <div className="empty-state">

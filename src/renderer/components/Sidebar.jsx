@@ -191,7 +191,9 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
             <FolderTree
               folders={folderTree}
               activeFolder={activeFolder}
+              activeContact={activeContact}
               onSelect={onSelectFolder}
+              onSelectContact={onSelectContact}
               onRefresh={refreshFolders}
               onManage={onManageFolder}
             />
