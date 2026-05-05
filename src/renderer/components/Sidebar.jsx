@@ -222,10 +222,18 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
             )}
           </button>
           <button
-            className="sidebar-collapse-btn sidebar-collapse-btn--active"
-            title={activeView === 'tasks' ? 'Task' : 'Programmati'}
+            className={`sidebar-collapse-btn ${activeView === 'tasks' ? 'sidebar-collapse-btn--active' : ''}`}
+            onClick={() => onNavigate('tasks')}
+            title="Task"
           >
-            {activeView === 'tasks' ? <CheckSquare size={20} /> : <Clock size={20} />}
+            <CheckSquare size={20} />
+          </button>
+          <button
+            className={`sidebar-collapse-btn ${activeView === 'scheduled' ? 'sidebar-collapse-btn--active' : ''}`}
+            onClick={() => onNavigate('scheduled')}
+            title="Programmati"
+          >
+            <Clock size={20} />
           </button>
         </div>
       </div>
