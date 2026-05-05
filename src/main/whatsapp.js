@@ -354,51 +354,55 @@ class WhatsAppManager {
     }
     this.syncing.add(accountId)
     try {
-      // Prima sincronizza le chat con messaggi non letti
-      await this.syncUnreadChats(accountId, client)
-      // Poi sincronizza le chat recenti (ultime 10)
       await this.syncRecentChats(accountId, client)
-      // Infine i contatti
       await this.syncContacts(accountId, client)
     } finally {
       this.syncing.delete(accountId)
     }
   }
 
+  // Usa client.getChats() — l'elenco chat ordinato da WhatsApp per attività reale —
+  // invece del DB locale (che è stale per chat con nuovi messaggi arrivati offline).
   async syncRecentChats(accountId, client) {
-    console.log(`[WA] Sync chat recenti per account ${accountId}...`)
+    console.log(`[WA] Sync chat recenti (da WhatsApp) per account ${accountId}...`)
 
-    // Trova le ultime 10 chat con messaggi più recenti
-    const recentChats = this.db.prepare(`
-      SELECT whatsapp_id, name FROM contacts
-      WHERE account_id = ? AND whatsapp_id IS NOT NULL AND last_message_at IS NOT NULL
-      ORDER BY last_message_at DESC LIMIT 10
-    `).all(accountId)
-
-    if (recentChats.length === 0) {
-      console.log(`[WA] Nessuna chat recente da sincronizzare`)
+    let waChats
+    try {
+      waChats = await client.getChats()
+    } catch (err) {
+      console.error('[WA] getChats failed:', err.message)
       return
     }
 
-    console.log(`[WA] ${recentChats.length} chat recenti da sincronizzare`)
+    // Prende le prime 25 chat non di sistema, già ordinate per attività da WA
+    const chats = waChats
+      .filter(c => !this.isSystemChat(this.toIdString(c.id)))
+      .slice(0, 25)
 
-    for (const chatInfo of recentChats) {
+    console.log(`[WA] ${chats.length} chat recenti da sincronizzare`)
+    let totalNew = 0
+
+    for (const chat of chats) {
+      const chatWaId = this.toIdString(chat.id)
+      if (!chatWaId) continue
+
       try {
-        const chat = await client.getChatById(chatInfo.whatsapp_id)
-        if (!chat) continue
+        // Aggiorna unread_count con il valore reale dal server
+        const serverUnread = chat.unreadCount || 0
+        this.db.prepare('UPDATE contacts SET unread_count = ? WHERE account_id = ? AND whatsapp_id = ?')
+          .run(serverUnread, accountId, chatWaId)
 
-        // Sincronizza gli ultimi messaggi mancanti (max 10 per chat)
+        // Trova l'ultimo messaggio locale per decidere da dove riprendere
         const lastLocalMsg = this.db.prepare(`
-          SELECT wa_message_id, timestamp FROM messages
+          SELECT timestamp FROM messages
           WHERE contact_id = (SELECT id FROM contacts WHERE account_id = ? AND whatsapp_id = ?)
           ORDER BY timestamp DESC LIMIT 1
-        `).get(accountId, chatInfo.whatsapp_id)
+        `).get(accountId, chatWaId)
 
-        const messages = await chat.fetchMessages({ limit: 10 })
+        const messages = await chat.fetchMessages({ limit: 20 })
         let newMessages = 0
 
         for (const msg of messages) {
-          // Salta i messaggi che abbiamo già
           if (lastLocalMsg && msg.timestamp <= Math.floor(new Date(lastLocalMsg.timestamp).getTime() / 1000)) {
             continue
           }
@@ -407,67 +411,17 @@ class WhatsAppManager {
         }
 
         if (newMessages > 0) {
-          console.log(`[WA] Chat ${chatInfo.name}: ${newMessages} nuovi messaggi`)
+          console.log(`[WA] Chat ${chat.name}: ${newMessages} nuovi messaggi`)
+          totalNew += newMessages
         }
       } catch (err) {
-        console.error(`[WA] sync chat ${chatInfo.whatsapp_id} error:`, err.message)
-      }
-    }
-  }
-
-  async syncUnreadChats(accountId, client) {
-    console.log(`[WA] Sync chat non lette per account ${accountId}...`)
-
-    // Trova le chat con messaggi non letti nel database
-    const unreadChats = this.db.prepare(`
-      SELECT whatsapp_id, name FROM contacts
-      WHERE account_id = ? AND unread_count > 0 AND whatsapp_id IS NOT NULL
-      ORDER BY last_message_at DESC
-    `).all(accountId)
-
-    if (unreadChats.length === 0) {
-      console.log(`[WA] Nessuna chat non letta da sincronizzare`)
-      return
-    }
-
-    console.log(`[WA] ${unreadChats.length} chat non lette da sincronizzare`)
-
-    for (const chatInfo of unreadChats) {
-      try {
-        const chat = await client.getChatById(chatInfo.whatsapp_id)
-        if (!chat) continue
-
-        // Aggiorna il contatore non letti dal server
-        const serverUnread = chat.unreadCount || 0
-        this.db.prepare('UPDATE contacts SET unread_count = ? WHERE account_id = ? AND whatsapp_id = ?')
-          .run(serverUnread, accountId, chatInfo.whatsapp_id)
-
-        // Sincronizza gli ultimi messaggi (solo quelli mancanti)
-        const lastLocalMsg = this.db.prepare(`
-          SELECT wa_message_id, timestamp FROM messages
-          WHERE contact_id = (SELECT id FROM contacts WHERE account_id = ? AND whatsapp_id = ?)
-          ORDER BY timestamp DESC LIMIT 1
-        `).get(accountId, chatInfo.whatsapp_id)
-
-        const messages = await chat.fetchMessages({ limit: 20 })
-        let newMessages = 0
-
-        for (const msg of messages) {
-          // Salta i messaggi che abbiamo già
-          if (lastLocalMsg && msg.timestamp <= Math.floor(new Date(lastLocalMsg.timestamp).getTime() / 1000)) {
-            continue
-          }
-          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
-          newMessages++
-        }
-
-        console.log(`[WA] Chat ${chatInfo.name}: ${newMessages} nuovi messaggi`)
-      } catch (err) {
-        console.error(`[WA] sync chat ${chatInfo.whatsapp_id} error:`, err.message)
+        console.error(`[WA] sync chat ${chatWaId} error:`, err.message)
       }
     }
 
+    console.log(`[WA] Sync completata: ${totalNew} nuovi messaggi in totale`)
     this.safeSend('wa:history-synced', { accountId })
+    this.safeSend('wa:contacts-updated', { accountId })
   }
 
   async syncContacts(accountId, client) {
