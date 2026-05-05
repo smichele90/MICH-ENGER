@@ -414,6 +414,19 @@ class WhatsAppManager {
           console.log(`[WA] Chat ${chat.name}: ${newMessages} nuovi messaggi`)
           totalNew += newMessages
         }
+
+        // Avatar: aggiorna l'URL foto per questo contatto (solo lettura, nessun rischio)
+        try {
+          const waContact = await chat.getContact()
+          if (waContact) {
+            const picUrl = await waContact.getProfilePicUrl()
+            if (picUrl) {
+              this.db.prepare(
+                'UPDATE contacts SET profile_pic_url = ? WHERE account_id = ? AND whatsapp_id = ?'
+              ).run(picUrl, accountId, chatWaId)
+            }
+          }
+        } catch { /* contatto con privacy pic: normale */ }
       } catch (err) {
         console.error(`[WA] sync chat ${chatWaId} error:`, err.message)
       }
@@ -431,77 +444,34 @@ class WhatsAppManager {
       return
     }
 
+    // Sincronizza solo metadati (nome, telefono, gruppo) — gli avatar sono
+    // gestiti in syncRecentChats per i contatti attivi, senza download su disco.
     const upsertContact = this.db.prepare(`
-      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, profile_pic_path, profile_pic_url, is_group)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, is_group)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
         name = CASE WHEN excluded.name != '' THEN excluded.name ELSE contacts.name END,
         push_name = CASE WHEN excluded.push_name != '' THEN excluded.push_name ELSE contacts.push_name END,
         phone_number = CASE WHEN excluded.phone_number != '' THEN excluded.phone_number ELSE contacts.phone_number END,
-        profile_pic_path = COALESCE(excluded.profile_pic_path, contacts.profile_pic_path),
-        profile_pic_url = COALESCE(excluded.profile_pic_url, contacts.profile_pic_url),
         is_group = excluded.is_group
     `)
-
-    const avatarDir = path.join(app.getPath('userData'), 'avatars')
-    if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true })
 
     for (const contact of waContacts) {
       if (!(contact.isMyContact || contact.isGroup)) continue
       const waId = this.toIdString(contact.id)
       if (!waId || this.isSystemChat(waId)) continue
-
-      const stored = this.db.prepare('SELECT profile_pic_url FROM contacts WHERE account_id = ? AND whatsapp_id = ?')
-        .get(accountId, waId)
-
-      // Avatar: scaricalo se non lo abbiamo o se l'URL è cambiato
-      let localAvatarPath = null
-      let profilePicUrl = null
-      const filename = `${waId.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`
-      const fullPath = path.join(avatarDir, filename)
-      if (fs.existsSync(fullPath)) {
-        try {
-          const stat = fs.statSync(fullPath)
-          if (stat.size > 100 && this.isValidImageFile(fullPath)) {
-            localAvatarPath = fullPath
-          } else {
-            fs.unlinkSync(fullPath)
-          }
-        } catch { /* ignora */ }
-      }
-
-      try {
-        profilePicUrl = await contact.getProfilePicUrl()
-      } catch { profilePicUrl = null }
-
-      const shouldDownload = profilePicUrl && (!localAvatarPath || profilePicUrl !== stored?.profile_pic_url)
-      if (shouldDownload) {
-        if (fs.existsSync(fullPath)) {
-          try { fs.unlinkSync(fullPath) } catch { }
-        }
-        try {
-          const response = await fetch(profilePicUrl)
-          if (response.ok) {
-            const buffer = Buffer.from(await response.arrayBuffer())
-            if (buffer.length > 100 && this.isValidImageBuffer(buffer)) {
-              fs.writeFileSync(fullPath, buffer)
-              localAvatarPath = fullPath
-            }
-          }
-        } catch { /* niente avatar, ok */ }
-      }
-
       try {
         upsertContact.run(
           accountId, waId,
           contact.name || '', contact.pushname || '', contact.number || '',
-          localAvatarPath, profilePicUrl, contact.isGroup ? 1 : 0
+          contact.isGroup ? 1 : 0
         )
       } catch (err) {
         console.error('[WA] upsertContact error:', err.message)
       }
     }
     this.safeSend('wa:contacts-synced', accountId)
+    this.safeSend('wa:contacts-updated', { accountId })
   }
 
   // ---------- handle messaggio (incoming/outgoing/sync) ----------

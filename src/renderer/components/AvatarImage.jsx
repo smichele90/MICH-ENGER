@@ -6,9 +6,9 @@ export default function AvatarImage({ profilePicPath, profilePicUrl, isGroup, cl
 
   useEffect(() => {
     let active = true
-    const localPath = profilePicPath ? profilePicPath.trim() : ''
 
     const resolve = async () => {
+      const localPath = profilePicPath?.trim()
       if (localPath) {
         try {
           const exists = await window.api.fileExists(localPath)
@@ -17,15 +17,10 @@ export default function AvatarImage({ profilePicPath, profilePicUrl, isGroup, cl
             setResolvedSrc(`file:///${localPath.replace(/\\/g, '/')}`)
             return
           }
-        } catch {
-          // ignore and fallback to profilePicUrl
-        }
+        } catch { /* fallback all'URL */ }
       }
-      if (profilePicUrl) {
-        setResolvedSrc(profilePicUrl)
-      } else {
-        setResolvedSrc(null)
-      }
+      if (!active) return
+      setResolvedSrc(profilePicUrl || null)
     }
 
     resolve()
