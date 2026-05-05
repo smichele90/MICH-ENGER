@@ -144,7 +144,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
           </div>
 
           <div style={{ background: 'var(--bg-secondary)', padding: 12, borderRadius: 8 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <input type="checkbox" checked={form.notify}
                 onChange={e => setForm(f => ({ ...f, notify: e.target.checked }))} />
               <Bell size={14} /> <span style={{ fontSize: 13 }}>Notifica desktop</span>
