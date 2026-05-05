@@ -53,23 +53,6 @@ export default function ChatView({ contact, accountId }) {
       
       // Segna come letto all'apertura
       window.api.markAsRead(accountId, contact.id).catch(() => {})
-
-      // Sincronizza cronologia automaticamente se non è stata sincronizzata di recente
-      // (controlla se ci sono messaggi vecchi o mancanti)
-      const hasRecentMessages = msgs.some(m => {
-        const msgTime = new Date(m.timestamp).getTime()
-        const now = Date.now()
-        return (now - msgTime) < 24 * 60 * 60 * 1000 // messaggi nelle ultime 24 ore
-      })
-      
-      if (!hasRecentMessages || msgs.length < 50) {
-        // Sincronizza automaticamente se pochi messaggi o nessun messaggio recente
-        try {
-          await window.api.syncChatHistory(accountId, contact.id)
-        } catch (err) {
-          console.warn('Auto-sync history failed:', err.message)
-        }
-      }
     }
     load()
 
