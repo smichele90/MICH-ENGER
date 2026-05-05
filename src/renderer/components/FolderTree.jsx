@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { ChevronDown, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal, Users } from 'lucide-react'
 import AvatarImage from './AvatarImage'
 
-export default function FolderTree({ folders, activeFolder, activeContact, onSelect, onSelectContact, onRefresh, onManage, depth = 0 }) {
+export default function FolderTree({ folders, activeFolder, activeContact, onSelect, onSelectContact, onFolderAdded, onFolderUpdated, onFolderRemoved, onRefresh, onManage, depth = 0 }) {
   return (
     <div className={depth > 0 ? 'folder-children' : ''}>
       {folders.map(folder => (
@@ -13,6 +13,9 @@ export default function FolderTree({ folders, activeFolder, activeContact, onSel
           activeContact={activeContact}
           onSelect={onSelect}
           onSelectContact={onSelectContact}
+          onFolderAdded={onFolderAdded}
+          onFolderUpdated={onFolderUpdated}
+          onFolderRemoved={onFolderRemoved}
           onRefresh={onRefresh}
           onManage={onManage}
           depth={depth}
@@ -22,7 +25,7 @@ export default function FolderTree({ folders, activeFolder, activeContact, onSel
   )
 }
 
-function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectContact, onRefresh, onManage, depth }) {
+function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectContact, onFolderAdded, onFolderUpdated, onFolderRemoved, onRefresh, onManage, depth }) {
   const [isOpen, setIsOpen] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -69,21 +72,23 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
   const handleRename = async () => {
     if (renameValue.trim() && renameValue !== folder.name) {
       await window.api.updateFolder(folder.id, { name: renameValue.trim() })
-      onRefresh()
+      onFolderUpdated?.(folder.id, { name: renameValue.trim() })
     }
     setIsRenaming(false)
   }
 
   const handleDelete = async () => {
     await window.api.deleteFolder(folder.id)
-    onRefresh()
+    onFolderRemoved?.(folder.id)
     setShowMenu(false)
   }
 
   const handleCreateSub = async () => {
     if (!newSubName.trim()) return
-    await window.api.createFolder({ name: newSubName.trim(), parent_id: folder.id })
-    onRefresh()
+    const result = await window.api.createFolder({ name: newSubName.trim(), parent_id: folder.id })
+    if (result?.id) {
+      onFolderAdded?.({ id: result.id, name: newSubName.trim(), parent_id: folder.id, color: '#6C3CE1', icon: 'folder', sort_order: 0 })
+    }
     setNewSubName('')
     setShowNewSub(false)
     setIsOpen(true)
@@ -184,6 +189,9 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
           activeContact={activeContact}
           onSelect={onSelect}
           onSelectContact={onSelectContact}
+          onFolderAdded={onFolderAdded}
+          onFolderUpdated={onFolderUpdated}
+          onFolderRemoved={onFolderRemoved}
           onRefresh={onRefresh}
           onManage={onManage}
           depth={depth + 1}

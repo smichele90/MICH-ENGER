@@ -64,7 +64,15 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
   // Carica dati quando cambia l'account
   useEffect(() => {
     if (!accountId) return
-    async function load() {
+    async function loadContactsGroups() {
+      const [c, g] = await Promise.all([
+        window.api.getContacts(accountId),
+        window.api.getGroups(accountId),
+      ])
+      setContacts(c)
+      setGroups(g)
+    }
+    async function loadAll() {
       const [c, g, f] = await Promise.all([
         window.api.getContacts(accountId),
         window.api.getGroups(accountId),
@@ -74,18 +82,17 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
       setGroups(g)
       setFolders(f)
     }
-    load()
+    loadAll()
 
-    // Listener per nuovi messaggi (aggiorna contatori)
-    // Listeners per aggiornamenti
+    // I messaggi aggiornano solo contatti/gruppi (contatori non letti) — le cartelle non cambiano
     const removeMsgListener = window.api.onWhatsAppEvent('wa:message', ({ accountId: msgAccountId }) => {
-      if (msgAccountId === accountId) load()
+      if (msgAccountId === accountId) loadContactsGroups()
     })
     const removeHistoryListener = window.api.onWhatsAppEvent('wa:history-synced', ({ accountId: msgAccountId }) => {
-      if (msgAccountId === accountId) load()
+      if (msgAccountId === accountId) loadAll()
     })
     const removeContactsListener = window.api.onWhatsAppEvent('wa:contacts-updated', ({ accountId: msgAccountId }) => {
-      if (msgAccountId === accountId) load()
+      if (msgAccountId === accountId) loadContactsGroups()
     })
 
     return () => {
@@ -99,6 +106,26 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
   }, [])
 
+  const handleFolderAdded = useCallback((newFolder) => {
+    setFolders(prev => [...prev, newFolder])
+  }, [])
+
+  const handleFolderUpdated = useCallback((id, changes) => {
+    setFolders(prev => prev.map(f => f.id === id ? { ...f, ...changes } : f))
+  }, [])
+
+  const handleFolderRemoved = useCallback((id) => {
+    setFolders(prev => {
+      const toRemove = new Set()
+      const collect = (fid) => {
+        toRemove.add(fid)
+        prev.filter(f => f.parent_id === fid).forEach(f => collect(f.id))
+      }
+      collect(id)
+      return prev.filter(f => !toRemove.has(f.id))
+    })
+  }, [])
+
   // Crea nuova cartella
   const handleCreateFolder = useCallback(async () => {
     if (!newFolderName.trim() || creatingFolder) return
@@ -106,14 +133,14 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
     try {
       const result = await window.api.createFolder({ name: newFolderName.trim() })
       if (result?.id) {
-        setFolders(await window.api.getFolders())
+        handleFolderAdded({ id: result.id, name: newFolderName.trim(), parent_id: null, color: '#6C3CE1', icon: 'folder', sort_order: 0 })
         setNewFolderName('')
         setShowNewFolder(false)
       }
     } finally {
       setCreatingFolder(false)
     }
-  }, [newFolderName, creatingFolder])
+  }, [newFolderName, creatingFolder, handleFolderAdded])
 
   // Filtra contatti per ricerca
   const filteredContacts = useMemo(() => {
@@ -272,6 +299,9 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
               activeContact={activeContact}
               onSelect={onSelectFolder}
               onSelectContact={onSelectContact}
+              onFolderAdded={handleFolderAdded}
+              onFolderUpdated={handleFolderUpdated}
+              onFolderRemoved={handleFolderRemoved}
               onRefresh={refreshFolders}
               onManage={onManageFolder}
             />
