@@ -95,16 +95,19 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
           </div>
 
           <div className="form-group" style={{ background: 'var(--bg-secondary)', padding: 12, borderRadius: 8 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <input
+                id="create-notify-checkbox"
                 type="checkbox"
                 checked={notify}
                 onChange={e => setNotify(e.target.checked)}
+                style={{ cursor: 'pointer' }}
               />
-              <span style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Bell size={14} /> Abilita Notifica
-              </span>
-            </label>
+              <Bell size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <label htmlFor="create-notify-checkbox" style={{ fontSize: 14, fontWeight: 500, cursor: 'pointer', margin: 0 }}>
+                Abilita Notifica
+              </label>
+            </div>
             {notify && (
               <input
                 type="datetime-local"
