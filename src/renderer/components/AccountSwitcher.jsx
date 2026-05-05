@@ -1,5 +1,5 @@
 import React from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Volume2, VolumeX } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import ColorPanel from './ColorPanel'
 
@@ -27,7 +27,7 @@ function WaStatusDot({ status, onClick }) {
   )
 }
 
-export default function AccountSwitcher({ accounts, activeAccount, onSelect, onAdd, onDelete, theme, onToggleTheme, connectionStatuses, onReconnect }) {
+export default function AccountSwitcher({ accounts, activeAccount, onSelect, onAdd, onDelete, theme, onToggleTheme, soundEnabled, onToggleSound, connectionStatuses, onReconnect }) {
   const getInitials = (account) => {
     if (account.name) return account.name.charAt(0).toUpperCase()
     if (account.phone_number) return account.phone_number.slice(-2)
@@ -85,6 +85,16 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
           }}
         />
       )}
+
+      {/* Toggle suono notifiche */}
+      <button
+        className="theme-toggle"
+        onClick={onToggleSound}
+        title={soundEnabled ? 'Disattiva suono notifiche' : 'Attiva suono notifiche'}
+        style={!soundEnabled ? { color: 'var(--text-muted)', opacity: 0.45 } : undefined}
+      >
+        {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+      </button>
 
       {/* Pannello colori */}
       <ColorPanel theme={theme} />

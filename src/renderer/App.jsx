@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Minus, Square, X, Copy } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import AccountSwitcher from './components/AccountSwitcher'
@@ -8,6 +8,28 @@ import ScheduledList from './components/ScheduledList'
 import QRCodeModal from './components/QRCodeModal'
 import SearchOverlay from './components/SearchOverlay'
 import FolderContactManager from './components/FolderContactManager'
+function playNotificationSound() {
+  try {
+    const ctx = new AudioContext()
+    const play = (freq, startTime, duration) => {
+      const osc  = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(0.0001, startTime)
+      gain.gain.exponentialRampToValueAtTime(0.28, startTime + 0.01)
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration)
+      osc.start(startTime)
+      osc.stop(startTime + duration)
+    }
+    play(1318, ctx.currentTime,        0.25)  // E6
+    play(987,  ctx.currentTime + 0.18, 0.30)  // B5
+    setTimeout(() => ctx.close(), 700)
+  } catch {}
+}
+
 export default function App() {
   const [theme, setTheme] = useState('dark')
   const [accounts, setAccounts] = useState([])
@@ -22,6 +44,13 @@ export default function App() {
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
   const [connectionStatuses, setConnectionStatuses] = useState({})
   const [highlightMessageId, setHighlightMessageId] = useState(null)
+  const [soundEnabled, setSoundEnabled] = useState(true)
+
+  // Ref per leggere i valori aggiornati dentro il listener wa:message senza re-registrarlo
+  const activeContactRef = useRef(activeContact)
+  const soundEnabledRef  = useRef(true)
+  useEffect(() => { activeContactRef.current = activeContact }, [activeContact])
+  useEffect(() => { soundEnabledRef.current  = soundEnabled  }, [soundEnabled])
 
   // Carica tema e accounts all'avvio
   useEffect(() => {
@@ -31,6 +60,8 @@ export default function App() {
         setTheme(savedTheme)
         document.documentElement.setAttribute('data-theme', savedTheme)
       }
+      const savedSound = await window.api.getSetting('soundEnabled')
+      if (savedSound === 'false') { setSoundEnabled(false); soundEnabledRef.current = false }
       const savedColors = await window.api.getSetting('customColors')
       if (savedColors) {
         try {
@@ -87,6 +118,23 @@ export default function App() {
     const offErr     = window.api.onWhatsAppEvent('wa:error',       ({ accountId }) => set(accountId, 'error'))
     return () => { offReady?.(); offLoading?.(); offDisc?.(); offErr?.() }
   }, [])
+
+  // Suono notifica messaggi in arrivo
+  useEffect(() => {
+    const off = window.api.onWhatsAppEvent('wa:message', ({ message }) => {
+      if (!soundEnabledRef.current) return
+      if (message?.is_from_me) return
+      if (message?.contact_id === activeContactRef.current?.id) return
+      playNotificationSound()
+    })
+    return () => off?.()
+  }, [])
+
+  const toggleSound = useCallback(async () => {
+    const next = !soundEnabled
+    setSoundEnabled(next)
+    await window.api.setSetting('soundEnabled', String(next))
+  }, [soundEnabled])
 
   const handleReconnect = useCallback(async (accountId) => {
     setConnectionStatuses(prev => ({ ...prev, [accountId]: 'loading' }))
@@ -207,6 +255,8 @@ export default function App() {
           onDelete={handleDeleteAccount}
           theme={theme}
           onToggleTheme={toggleTheme}
+          soundEnabled={soundEnabled}
+          onToggleSound={toggleSound}
           connectionStatuses={connectionStatuses}
           onReconnect={handleReconnect}
         />
