@@ -99,17 +99,21 @@ export default function App() {
   const handleSelectFolder = (folder) => {
     setActiveFolder(folder)
   }
-  const handleNavigate = (view, options = {}) => {
+  const handleNavigate = useCallback(async (view, options = {}) => {
     setActiveView(view)
     if (view === 'chat') {
       if (options.contact) setActiveContact(options.contact)
       if (options.folder) setActiveFolder(options.folder)
-      // options.messageId potrebbe essere usato in ChatView per scrollare
+      if (options.contactId) {
+        const all = await window.api.getContacts(activeAccount?.id)
+        const found = all.find(c => c.id === options.contactId)
+        if (found) setActiveContact(found)
+      }
     } else {
       setActiveContact(null)
       setActiveFolder(null)
     }
-  }
+  }, [activeAccount?.id])
 
   // Renderizza la vista principale
   const renderMainView = () => {

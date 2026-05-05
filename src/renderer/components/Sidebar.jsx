@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Search, FolderPlus, ChevronRight, Users, User, CheckSquare, Clock, MessageSquare, Hash, MailCheck, RefreshCw } from 'lucide-react'
+import { Search, FolderPlus, CheckSquare, Clock, MessageSquare, MailCheck, RefreshCw } from 'lucide-react'
 import FolderTree from './FolderTree'
 import AvatarImage from './AvatarImage'
 
@@ -60,7 +60,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
       removeHistoryListener?.()
       removeContactsListener?.()
     }
-  }, [accountId, activeContact?.id])
+  }, [accountId])
 
   const toggleSection = useCallback((section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))

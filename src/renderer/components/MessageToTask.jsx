@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { CheckSquare, X, Save, Calendar } from 'lucide-react'
+import { CheckSquare, X, Save } from 'lucide-react'
 
 /**
  * Popover di quick-create di un task partendo da un messaggio.
