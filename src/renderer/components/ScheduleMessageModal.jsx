@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react'
-import { X, Send, Eye, Folder, User, Users, Clock, Repeat, AlertTriangle, Search } from 'lucide-react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
+import { X, Send, Eye, Folder, User, Users, Clock, Repeat, AlertTriangle, Search, ChevronDown } from 'lucide-react'
 
 const RECURRENCE_OPTS = [
   { value: 'once',    label: 'Una volta sola' },
@@ -9,19 +9,98 @@ const RECURRENCE_OPTS = [
   { value: 'custom',  label: 'Personalizzato (cron)' }
 ]
 
-/**
- * Modal di creazione/modifica messaggio programmato.
- * Props:
- *  - accountId
- *  - initialContact (facoltativo): pre-seleziona target contatto
- *  - editing (facoltativo): oggetto scheduled_message da modificare
- *  - onClose, onSaved
- */
+function SearchableSelect({ value, options, placeholder, onChange }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const containerRef = useRef(null)
+  const searchRef = useRef(null)
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return options
+    const q = search.toLowerCase()
+    return options.filter(o =>
+      o.name?.toLowerCase().includes(q) || o.hint?.toLowerCase().includes(q)
+    )
+  }, [options, search])
+
+  const selected = options.find(o => String(o.id) === String(value))
+
+  useEffect(() => {
+    if (!isOpen) { setSearch(''); return }
+    searchRef.current?.focus()
+    function handleMouseDown(e) {
+      if (!containerRef.current?.contains(e.target)) setIsOpen(false)
+    }
+    document.addEventListener('mousedown', handleMouseDown)
+    return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [isOpen])
+
+  const handleSelect = (id) => {
+    onChange(String(id))
+    setIsOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      {/* Trigger */}
+      <button
+        type="button"
+        className="chat-input"
+        onClick={() => setIsOpen(v => !v)}
+        style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', userSelect: 'none' }}
+      >
+        <span style={{ color: selected ? 'var(--text-primary)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected ? selected.name : placeholder}
+        </span>
+        <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8, transform: isOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
+      </button>
+
+      {/* Dropdown */}
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+          background: 'var(--bg-modal)', border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow)',
+          zIndex: 200, overflow: 'hidden'
+        }}>
+          {/* Search input */}
+          <div style={{ padding: '8px', borderBottom: '1px solid var(--border-light)', position: 'relative' }}>
+            <Search size={13} style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              ref={searchRef}
+              className="chat-input"
+              style={{ paddingLeft: 30, padding: '6px 10px 6px 30px', fontSize: 13 }}
+              placeholder="Cerca..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {/* List */}
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: 13 }}>Nessun risultato</div>
+            ) : filtered.map(t => (
+              <div
+                key={t.id}
+                className={`sidebar-item ${String(value) === String(t.id) ? 'sidebar-item--active' : ''}`}
+                onClick={() => handleSelect(t.id)}
+                style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+              >
+                <span style={{ fontSize: 13, fontWeight: String(value) === String(t.id) ? 600 : 400 }}>{t.name}</span>
+                {t.hint && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8, flexShrink: 0 }}>{t.hint}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ScheduleMessageModal({ accountId, initialContact, editing, onClose, onSaved }) {
   const [contacts, setContacts] = useState([])
   const [folders, setFolders] = useState([])
   const [folderCounts, setFolderCounts] = useState({})
-  const [targetSearch, setTargetSearch] = useState('')
 
   const [form, setForm] = useState(() => ({
     target_type: editing?.target_type || (initialContact ? (initialContact.is_group ? 'group' : 'contact') : 'contact'),
@@ -40,7 +119,6 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
       setContacts([...c, ...g])
       const f = await window.api.getFolders()
       setFolders(f)
-      // conteggio membri cartella
       const counts = {}
       for (const folder of f) {
         const m = await window.api.getFolderMembers(folder.id)
@@ -59,14 +137,6 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
       : contacts.filter(c => !c.is_group)
     return filtered.map(c => ({ id: c.id, name: c.name || c.push_name || c.phone_number, hint: c.phone_number || '' }))
   }, [form.target_type, contacts, folders, folderCounts])
-
-  const filteredTargetList = useMemo(() => {
-    if (!targetSearch.trim()) return targetList
-    const q = targetSearch.toLowerCase()
-    return targetList.filter(t =>
-      t.name?.toLowerCase().includes(q) || t.hint?.toLowerCase().includes(q)
-    )
-  }, [targetList, targetSearch])
 
   const selectedTargetName = useMemo(() => {
     const t = targetList.find(x => String(x.id) === String(form.target_id))
@@ -136,7 +206,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
                 <button
                   key={opt.v}
                   className={`btn ${form.target_type === opt.v ? 'btn--primary' : 'btn--ghost'}`}
-                  onClick={() => { setForm(f => ({ ...f, target_type: opt.v, target_id: '' })); setTargetSearch('') }}
+                  onClick={() => setForm(f => ({ ...f, target_type: opt.v, target_id: '' }))}
                   type="button"
                   style={{ flex: 1 }}
                 >
@@ -146,36 +216,17 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
             </div>
           </div>
 
-          {/* Target select con ricerca */}
+          {/* Target combobox */}
           <div>
             <label style={lblStyle}>
               Seleziona {form.target_type === 'folder' ? 'cartella' : (form.target_type === 'group' ? 'gruppo' : 'contatto')}
             </label>
-            <div style={{ position: 'relative', marginBottom: 6 }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-              <input
-                className="chat-input"
-                style={{ paddingLeft: 32 }}
-                placeholder="Cerca..."
-                value={targetSearch}
-                onChange={e => setTargetSearch(e.target.value)}
-              />
-            </div>
-            <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-input)' }}>
-              {filteredTargetList.length === 0 ? (
-                <div style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: 13 }}>Nessun risultato</div>
-              ) : filteredTargetList.map(t => (
-                <div
-                  key={t.id}
-                  className={`sidebar-item ${String(form.target_id) === String(t.id) ? 'sidebar-item--active' : ''}`}
-                  onClick={() => setForm(f => ({ ...f, target_id: String(t.id) }))}
-                  style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                >
-                  <span style={{ fontSize: 13, fontWeight: String(form.target_id) === String(t.id) ? 600 : 400 }}>{t.name}</span>
-                  {t.hint && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8, flexShrink: 0 }}>{t.hint}</span>}
-                </div>
-              ))}
-            </div>
+            <SearchableSelect
+              value={form.target_id}
+              options={targetList}
+              placeholder="— Seleziona —"
+              onChange={id => setForm(f => ({ ...f, target_id: id }))}
+            />
           </div>
 
           {/* Body */}
