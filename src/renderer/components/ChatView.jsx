@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, DownloadCloud, FolderPlus } from 'lucide-react'
+import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users } from 'lucide-react'
 import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import MediaPreview from './MediaPreview'
@@ -37,8 +37,6 @@ export default function ChatView({ contact, accountId }) {
       setDownloadingMedia(prev => { const n = new Set(prev); n.delete(msgId); return n })
     }
   }
-  const [showFolderModal, setShowFolderModal] = useState(false)
-  const [folders, setFolders] = useState([])
   const chatEndRef = useRef(null)
   const textareaRef = useRef(null)
 
@@ -299,60 +297,6 @@ export default function ChatView({ contact, accountId }) {
             <div className="main-header__status">
               {contact.is_group ? 'Gruppo' : contact.phone_number || 'Contatto'}
             </div>
-          </div>
-        </div>
-        <div className="main-header__actions" style={{ display: 'flex', gap: '8px' }}>
-          <button 
-            className="btn--icon" 
-            onClick={async () => {
-              if (window.confirm(`Vuoi scaricare TUTTA la cronologia di ${contact.name || contact.phone_number}? Potrebbe richiedere del tempo.`)) {
-                setLoading(true)
-                const res = await window.api.syncChatHistory(accountId, contact.id)
-                if (!res || !res.success) alert('Errore: ' + (res?.error || 'Sconosciuto'))
-                setLoading(false)
-              }
-            }}
-            title="Scarica cronologia completa"
-          >
-            <DownloadCloud size={18} />
-          </button>
-          <div style={{ position: 'relative' }}>
-            <button 
-              className="btn--icon" 
-              title="Aggiungi a Cartella"
-              onClick={async () => {
-                const f = await window.api.getFolders();
-                setFolders(f);
-                setShowFolderModal(!showFolderModal);
-              }}
-            >
-              <FolderPlus size={18} />
-            </button>
-            {showFolderModal && (
-              <div style={{ position: 'absolute', right: 0, top: 30, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 8, zIndex: 100, minWidth: 150, boxShadow: 'var(--shadow-md)' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, padding: '0 8px' }}>SELEZIONA CARTELLA</div>
-                {folders.length === 0 ? (
-                  <div style={{ padding: '4px 8px', fontSize: 12, color: 'var(--text-muted)' }}>Nessuna cartella</div>
-                ) : (
-                  folders.map(f => (
-                    <button
-                      key={f.id}
-                      onClick={async () => {
-                        const ok = await window.api.addFolderMember(f.id, contact.id);
-                        setShowFolderModal(false);
-                        if (ok === false) alert(`${contact.name || 'Contatto'} è già in "${f.name}".`);
-                        else alert(`Aggiunto a "${f.name}".`);
-                      }}
-                      style={{ width: '100%', textAlign: 'left', padding: '6px 8px', background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', borderRadius: 4, fontSize: 13 }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                    >
-                      📁 {f.name}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
