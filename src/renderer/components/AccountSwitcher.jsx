@@ -87,7 +87,7 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
       )}
 
       {/* Pannello colori */}
-      <ColorPanel />
+      <ColorPanel theme={theme} />
 
       {/* Theme toggle in basso */}
       <ThemeToggle theme={theme} onToggle={onToggleTheme} />

@@ -34,16 +34,16 @@ export default function App() {
       const savedColors = await window.api.getSetting('customColors')
       if (savedColors) {
         try {
-          const c = JSON.parse(savedColors)
-          if (c.accent) {
-            const [r, g, b] = [1, 3, 5].map(i => parseInt(c.accent.slice(i, i + 2), 16))
-            document.documentElement.style.setProperty('--accent', c.accent)
-            document.documentElement.style.setProperty('--accent-hover', c.accent)
-            document.documentElement.style.setProperty('--accent-light', `rgba(${r},${g},${b},0.15)`)
-            document.documentElement.style.setProperty('--bg-active', `rgba(${r},${g},${b},0.2)`)
+          const parsed = JSON.parse(savedColors)
+          // Nuovo formato: { dark: {...}, light: {...} }
+          const themeKey = savedTheme || 'dark'
+          const c = parsed[themeKey]
+          if (c) {
+            if (c.sidebarBg) document.documentElement.style.setProperty('--bg-sidebar', c.sidebarBg)
+            if (c.chatBg) document.documentElement.style.setProperty('--bg-primary', c.chatBg)
+            if (c.messageSent) document.documentElement.style.setProperty('--bg-message-me', c.messageSent)
+            if (c.messageReceived) document.documentElement.style.setProperty('--bg-message-other', c.messageReceived)
           }
-          if (c.messageBubble) document.documentElement.style.setProperty('--bg-message-me', c.messageBubble)
-          if (c.sidebarBg) document.documentElement.style.setProperty('--bg-sidebar', c.sidebarBg)
         } catch {}
       }
       const accs = await window.api.getAccounts()

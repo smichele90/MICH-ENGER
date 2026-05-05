@@ -642,18 +642,24 @@ body {
 
 /* ═══ COLOR PANEL ═══ */
 .color-panel {
-  position: absolute;
-  bottom: 0;
-  left: calc(100% + 8px);
-  width: 216px;
+  position: fixed;
+  left: calc(var(--account-bar-width) + 12px);
+  bottom: 20px;
+  width: 272px;
   background: var(--bg-modal);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
-  padding: 14px;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 0 0 1px var(--border);
   z-index: 500;
-  animation: scaleIn 0.15s ease;
-  transform-origin: bottom left;
+  animation: slideUp 0.2s ease;
+  overflow: hidden;
+}
+.color-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-light);
 }
 .color-panel__title {
   font-size: 11px;
@@ -661,48 +667,74 @@ body {
   text-transform: uppercase;
   letter-spacing: 1px;
   color: var(--text-muted);
-  margin-bottom: 12px;
+}
+.color-panel__close {
+  width: 24px; height: 24px;
+  border-radius: var(--radius-sm);
+  background: none; border: none;
+  color: var(--text-muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: var(--transition);
+}
+.color-panel__close:hover { background: var(--bg-hover); color: var(--text-primary); }
+.color-panel__tabs {
+  display: flex;
+  padding: 10px 12px;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-light);
+}
+.color-panel__tab {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  font-size: 12px; font-weight: 600;
+  border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: var(--transition);
+  font-family: var(--font);
+}
+.color-panel__tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.color-panel__tab--active { background: var(--bg-active); color: var(--accent); }
+.color-panel__tab-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--accent); display: inline-block;
+}
+.color-panel__notice {
+  margin: 10px 12px 0;
+  padding: 7px 10px;
+  background: rgba(245,158,11,0.1);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: var(--radius-sm);
+  font-size: 11px; color: var(--warning); line-height: 1.45;
+}
+.color-panel__colors {
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 10px;
 }
 .color-panel__row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  gap: 8px;
+  display: flex; align-items: center; gap: 10px; cursor: pointer;
+}
+.color-panel__swatch {
+  width: 22px; height: 22px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); flex-shrink: 0;
 }
 .color-panel__label {
-  font-size: 13px;
-  color: var(--text-primary);
-  flex: 1;
-  cursor: pointer;
+  font-size: 13px; color: var(--text-primary); flex: 1;
 }
 .color-panel__input {
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  padding: 2px;
-  background: none;
-  flex-shrink: 0;
+  width: 32px; height: 32px;
+  border: none; border-radius: var(--radius-sm);
+  cursor: pointer; padding: 2px; background: none; flex-shrink: 0;
 }
 .color-panel__reset {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 6px 0 2px;
-  margin-top: 2px;
-  transition: var(--transition);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; font-size: 12px; color: var(--text-muted);
+  background: none; border: none; border-top: 1px solid var(--border-light);
+  cursor: pointer; padding: 10px; transition: var(--transition);
   font-family: var(--font);
-  border-top: 1px solid var(--border-light);
-  width: 100%;
 }
-.color-panel__reset:hover { color: var(--text-primary); }
+.color-panel__reset:hover { color: var(--text-primary); background: var(--bg-hover); }
 
 /* ═══ THEME TOGGLE ═══ */
 .theme-toggle {
