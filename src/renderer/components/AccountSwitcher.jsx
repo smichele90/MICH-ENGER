@@ -1,6 +1,7 @@
 import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
+import ColorPanel from './ColorPanel'
 
 const STATUS_CFG = {
   ready:        { color: '#10b981', label: 'Connesso',                              cursor: 'default' },
@@ -84,6 +85,9 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
           }}
         />
       )}
+
+      {/* Pannello colori */}
+      <ColorPanel />
 
       {/* Theme toggle in basso */}
       <ThemeToggle theme={theme} onToggle={onToggleTheme} />

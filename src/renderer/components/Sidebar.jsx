@@ -36,7 +36,7 @@ function PreviewText({ body, mediaType, mediaFilename, isGroup, accountId }) {
   return resolvedBody ?? body ?? 'Nessun messaggio'
 }
 
-export default function Sidebar({ accountId, activeContact, activeFolder, activeView, onSelectContact, onSelectFolder, onNavigate, onManageFolder }) {
+export default function Sidebar({ accountId, activeContact, activeFolder, activeView, collapsed, onSelectContact, onSelectFolder, onNavigate, onManageFolder }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [contacts, setContacts] = useState([])
   const [groups, setGroups] = useState([])
@@ -207,6 +207,31 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
   )
   const unreadTotal = unreadContacts + unreadGroups
 
+  if (collapsed) {
+    return (
+      <div className="sidebar sidebar--collapsed">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '12px 0', gap: 6 }}>
+          <button
+            className="sidebar-collapse-btn"
+            onClick={() => onNavigate('chat')}
+            title="Chat"
+          >
+            <MessageSquare size={20} />
+            {unreadTotal > 0 && (
+              <span className="sidebar-collapse-badge">{unreadTotal > 99 ? '99+' : unreadTotal}</span>
+            )}
+          </button>
+          <button
+            className="sidebar-collapse-btn sidebar-collapse-btn--active"
+            title={activeView === 'tasks' ? 'Task' : 'Programmati'}
+          >
+            {activeView === 'tasks' ? <CheckSquare size={20} /> : <Clock size={20} />}
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="sidebar">
       {/* Ricerca */}
@@ -354,12 +379,12 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                   key={item.id}
                   className={`sidebar-item ${activeContact?.id === item.id ? 'sidebar-item--active' : ''}`}
                   onClick={() => onSelectContact(item)}
-                  style={{ padding: '8px 12px', height: 'auto' }}
+                  style={{ padding: '10px 16px', minHeight: 68 }}
                 >
                   <div className="sidebar-item__avatar" style={{
-                    width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-hover)',
+                    width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-hover)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
+                    fontSize: 14, fontWeight: 600, color: 'var(--text-muted)',
                     overflow: 'hidden'
                   }}>
                     <AvatarImage
@@ -367,21 +392,21 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                       profilePicUrl={item.profile_pic_url}
                       isGroup={item.is_group}
                       className="sidebar-item__avatar"
-                      style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-hover)' }}
+                      style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-hover)' }}
                     />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                      <span className="sidebar-item__label" style={{ fontWeight: item.unread_count > 0 ? 700 : 500, fontSize: 13 }}>
+                  <div style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                      <span className="sidebar-item__label" style={{ fontWeight: item.unread_count > 0 ? 700 : 500, fontSize: 15 }}>
                         {item.name || item.push_name || item.phone_number}
                       </span>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 6 }}>
                         {formatLastTime(item.last_message_at)}
                       </span>
                     </div>
                     {sidebarTab === 'recent' && (
                       <div style={{
-                        fontSize: 11, color: item.unread_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)',
+                        fontSize: 13, color: item.unread_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                       }}>
                         <PreviewText

@@ -31,6 +31,21 @@ export default function App() {
         setTheme(savedTheme)
         document.documentElement.setAttribute('data-theme', savedTheme)
       }
+      const savedColors = await window.api.getSetting('customColors')
+      if (savedColors) {
+        try {
+          const c = JSON.parse(savedColors)
+          if (c.accent) {
+            const [r, g, b] = [1, 3, 5].map(i => parseInt(c.accent.slice(i, i + 2), 16))
+            document.documentElement.style.setProperty('--accent', c.accent)
+            document.documentElement.style.setProperty('--accent-hover', c.accent)
+            document.documentElement.style.setProperty('--accent-light', `rgba(${r},${g},${b},0.15)`)
+            document.documentElement.style.setProperty('--bg-active', `rgba(${r},${g},${b},0.2)`)
+          }
+          if (c.messageBubble) document.documentElement.style.setProperty('--bg-message-me', c.messageBubble)
+          if (c.sidebarBg) document.documentElement.style.setProperty('--bg-sidebar', c.sidebarBg)
+        } catch {}
+      }
       const accs = await window.api.getAccounts()
       // Filtra gli account "fantasma" (senza numero e non attivi) per la visualizzazione iniziale
       const validAccs = accs.filter(a => a.phone_number || a.is_active)
@@ -203,6 +218,7 @@ export default function App() {
           activeContact={activeContact}
           activeFolder={activeFolder}
           activeView={activeView}
+          collapsed={activeView === 'tasks' || activeView === 'scheduled'}
           onSelectContact={handleSelectContact}
           onSelectFolder={handleSelectFolder}
           onNavigate={handleNavigate}
