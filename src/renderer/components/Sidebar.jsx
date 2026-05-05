@@ -245,94 +245,94 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
           )}
         </div>
 
-        {/* Lista dinamica in base al tab */}
-        <div className="sidebar-section">
-          <div className="sidebar-section__header">
-            <span className="sidebar-section__title">
-              {sidebarTab === 'recent' ? '💬 Conversazioni Recenti' : sidebarTab === 'contacts' ? '👤 Tutti i Contatti' : '👥 Gruppi'}
-            </span>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button 
-                className="sidebar-section__action" 
-                style={{ opacity: 1 }}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (window.confirm('Vuoi ricaricare tutta la cronologia? Questo scaricherà nuovamente i media mancanti.')) {
-                    const result = await window.api.resetHistory(accountId);
-                    if (result && !result.success) {
-                      alert('Errore durante il ricaricamento: ' + result.error);
-                    } else if (!result) {
-                      // Compatibility for older returns
+        {/* Lista contatti/conversazioni — visibile solo nella scheda Chat */}
+        {activeView === 'chat' && (
+          <div className="sidebar-section">
+            <div className="sidebar-section__header">
+              <span className="sidebar-section__title">
+                {sidebarTab === 'recent' ? '💬 Conversazioni Recenti' : sidebarTab === 'contacts' ? '👤 Tutti i Contatti' : '👥 Gruppi'}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  className="sidebar-section__action"
+                  style={{ opacity: 1 }}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (window.confirm('Vuoi ricaricare tutta la cronologia? Questo scaricherà nuovamente i media mancanti.')) {
+                      const result = await window.api.resetHistory(accountId);
+                      if (result && !result.success) {
+                        alert('Errore durante il ricaricamento: ' + result.error);
+                      }
                     }
-                  }
-                }}
-                title="Ricarica cronologia"
-              >
-                <RefreshCw size={14} />
-              </button>
-              <button 
-                className="sidebar-section__action" 
-                style={{ opacity: 1 }}
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (window.confirm('Segnare tutti i messaggi come letti?')) {
-                    await window.api.markAllAsRead(accountId);
-                  }
-                }}
-                title="Segna tutto come letto"
-              >
-                <MailCheck size={14} />
-              </button>
+                  }}
+                  title="Ricarica cronologia"
+                >
+                  <RefreshCw size={14} />
+                </button>
+                <button
+                  className="sidebar-section__action"
+                  style={{ opacity: 1 }}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    if (window.confirm('Segnare tutti i messaggi come letti?')) {
+                      await window.api.markAllAsRead(accountId);
+                    }
+                  }}
+                  title="Segna tutto come letto"
+                >
+                  <MailCheck size={14} />
+                </button>
+              </div>
             </div>
-          </div>
-          
-          <div className="sidebar-items">
-            {(sidebarTab === 'recent' ? recentItems : (sidebarTab === 'contacts' ? filteredContacts : filteredGroups)).map(item => (
-              <div
-                key={item.id}
-                className={`sidebar-item ${activeContact?.id === item.id ? 'sidebar-item--active' : ''}`}
-                onClick={() => onSelectContact(item)}
-                style={{ padding: '8px 12px', height: 'auto' }}
-              >
-                <div className="sidebar-item__avatar" style={{ 
-                  width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-hover)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                  fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
-                  overflow: 'hidden'
-                }}>
-                  <AvatarImage
-                    profilePicPath={item.profile_pic_path}
-                    profilePicUrl={item.profile_pic_url}
-                    isGroup={item.is_group}
-                    className="sidebar-item__avatar"
-                    style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-hover)' }}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
-                    <span className="sidebar-item__label" style={{ fontWeight: item.unread_count > 0 ? 700 : 500, fontSize: 13 }}>
-                      {item.name || item.push_name || item.phone_number}
-                    </span>
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                      {formatLastTime(item.last_message_at)}
-                    </span>
+
+            <div className="sidebar-items">
+              {(sidebarTab === 'recent' ? recentItems : (sidebarTab === 'contacts' ? filteredContacts : filteredGroups)).map(item => (
+                <div
+                  key={item.id}
+                  className={`sidebar-item ${activeContact?.id === item.id ? 'sidebar-item--active' : ''}`}
+                  onClick={() => onSelectContact(item)}
+                  style={{ padding: '8px 12px', height: 'auto' }}
+                >
+                  <div className="sidebar-item__avatar" style={{
+                    width: 32, height: 32, borderRadius: '50%', background: 'var(--bg-hover)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
+                    overflow: 'hidden'
+                  }}>
+                    <AvatarImage
+                      profilePicPath={item.profile_pic_path}
+                      profilePicUrl={item.profile_pic_url}
+                      isGroup={item.is_group}
+                      className="sidebar-item__avatar"
+                      style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-hover)' }}
+                    />
                   </div>
-                  {sidebarTab === 'recent' && (
-                    <div style={{ 
-                      fontSize: 11, color: item.unread_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)', 
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' 
-                    }}>
-                      {item.last_message_body || 'Nessun messaggio'}
+                  <div style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                      <span className="sidebar-item__label" style={{ fontWeight: item.unread_count > 0 ? 700 : 500, fontSize: 13 }}>
+                        {item.name || item.push_name || item.phone_number}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        {formatLastTime(item.last_message_at)}
+                      </span>
                     </div>
+                    {sidebarTab === 'recent' && (
+                      <div style={{
+                        fontSize: 11, color: item.unread_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)',
+                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                      }}>
+                        {item.last_message_body || 'Nessun messaggio'}
+                      </div>
+                    )}
+                  </div>
+                  {item.unread_count > 0 && (
+                    <span className="sidebar-item__badge" style={{ marginLeft: 8 }}>{item.unread_count}</span>
                   )}
                 </div>
-                {item.unread_count > 0 && (
-                  <span className="sidebar-item__badge" style={{ marginLeft: 8 }}>{item.unread_count}</span>
-                )}
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
