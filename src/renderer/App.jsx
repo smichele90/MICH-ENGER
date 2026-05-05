@@ -20,6 +20,7 @@ export default function App() {
   const [isMaximized, setIsMaximized] = useState(false)
   const [managingFolder, setManagingFolder] = useState(null)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
+  const [connectionStatuses, setConnectionStatuses] = useState({})
 
   // Carica tema e accounts all'avvio
   useEffect(() => {
@@ -33,11 +34,15 @@ export default function App() {
       // Filtra gli account "fantasma" (senza numero e non attivi) per la visualizzazione iniziale
       const validAccs = accs.filter(a => a.phone_number || a.is_active)
       setAccounts(validAccs)
-      
+
       if (validAccs.length > 0) {
         setActiveAccount(validAccs[0])
         // Inizializza solo gli account che hanno già un numero (già associati)
-        accs.filter(a => a.phone_number).forEach(acc => {
+        const toInit = accs.filter(a => a.phone_number)
+        const initStatus = {}
+        toInit.forEach(acc => { initStatus[acc.id] = 'loading' })
+        setConnectionStatuses(initStatus)
+        toInit.forEach(acc => {
           window.api.initializeWhatsApp(acc.id).catch(err => console.error(err))
         })
       }
@@ -53,6 +58,22 @@ export default function App() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  // Ascolta eventi di stato connessione WhatsApp (globale, per tutti gli account)
+  useEffect(() => {
+    const set = (accountId, status) =>
+      setConnectionStatuses(prev => ({ ...prev, [accountId]: status }))
+    const offReady   = window.api.onWhatsAppEvent('wa:ready',       ({ accountId }) => set(accountId, 'ready'))
+    const offLoading = window.api.onWhatsAppEvent('wa:loading',     ({ accountId }) => set(accountId, 'loading'))
+    const offDisc    = window.api.onWhatsAppEvent('wa:disconnected', ({ accountId }) => set(accountId, 'disconnected'))
+    const offErr     = window.api.onWhatsAppEvent('wa:error',       ({ accountId }) => set(accountId, 'error'))
+    return () => { offReady?.(); offLoading?.(); offDisc?.(); offErr?.() }
+  }, [])
+
+  const handleReconnect = useCallback(async (accountId) => {
+    setConnectionStatuses(prev => ({ ...prev, [accountId]: 'loading' }))
+    await window.api.initializeWhatsApp(accountId)
   }, [])
 
   // Toggle tema
@@ -168,6 +189,8 @@ export default function App() {
           onDelete={handleDeleteAccount}
           theme={theme}
           onToggleTheme={toggleTheme}
+          connectionStatuses={connectionStatuses}
+          onReconnect={handleReconnect}
         />
 
         {/* Sidebar */}

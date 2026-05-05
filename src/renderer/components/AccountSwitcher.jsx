@@ -2,7 +2,31 @@ import React from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 
-export default function AccountSwitcher({ accounts, activeAccount, onSelect, onAdd, onDelete, theme, onToggleTheme }) {
+const STATUS_CFG = {
+  ready:        { color: '#10b981', label: 'Connesso',                              cursor: 'default' },
+  loading:      { color: '#f59e0b', label: 'Connessione in corso…',                cursor: 'wait'    },
+  disconnected: { color: '#ef4444', label: 'Disconnesso — clicca per riconnettere', cursor: 'pointer' },
+  error:        { color: '#ef4444', label: 'Errore — clicca per riconnettere',      cursor: 'pointer' },
+}
+
+function WaStatusDot({ status, onClick }) {
+  const cfg = STATUS_CFG[status] ?? STATUS_CFG.disconnected
+  return (
+    <button
+      onClick={onClick}
+      title={cfg.label}
+      style={{ background: 'none', border: 'none', padding: '8px', cursor: cfg.cursor,
+               display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    >
+      <span
+        className={status === 'loading' ? 'wa-status--loading' : ''}
+        style={{ display: 'block', width: 12, height: 12, borderRadius: '50%', background: cfg.color }}
+      />
+    </button>
+  )
+}
+
+export default function AccountSwitcher({ accounts, activeAccount, onSelect, onAdd, onDelete, theme, onToggleTheme, connectionStatuses, onReconnect }) {
   const getInitials = (account) => {
     if (account.name) return account.name.charAt(0).toUpperCase()
     if (account.phone_number) return account.phone_number.slice(-2)
@@ -25,7 +49,11 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
           title={account.name || account.phone_number || `Account ${i + 1}`}
         >
           {getInitials(account)}
-          <span className={`account-avatar__status ${account.is_active ? 'account-avatar__status--online' : 'account-avatar__status--offline'}`} />
+          <span className={`account-avatar__status ${
+            (connectionStatuses?.[account.id] ?? (account.is_active ? 'ready' : 'disconnected')) === 'ready'   ? 'account-avatar__status--online'   :
+            (connectionStatuses?.[account.id]) === 'loading'                                                    ? 'account-avatar__status--loading'  :
+                                                                                                                  'account-avatar__status--offline'
+          }`} />
           
           <button 
             className="account-avatar__delete"
@@ -45,6 +73,17 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />
+
+      {/* Semaforo connessione account attivo */}
+      {activeAccount && (
+        <WaStatusDot
+          status={connectionStatuses?.[activeAccount.id] ?? 'disconnected'}
+          onClick={() => {
+            const s = connectionStatuses?.[activeAccount.id]
+            if (s !== 'ready' && s !== 'loading') onReconnect?.(activeAccount.id)
+          }}
+        />
+      )}
 
       {/* Theme toggle in basso */}
       <ThemeToggle theme={theme} onToggle={onToggleTheme} />
