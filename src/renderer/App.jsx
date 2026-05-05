@@ -65,7 +65,8 @@ export default function App() {
     const set = (accountId, status) =>
       setConnectionStatuses(prev => ({ ...prev, [accountId]: status }))
     const offReady   = window.api.onWhatsAppEvent('wa:ready',       ({ accountId }) => set(accountId, 'ready'))
-    const offLoading = window.api.onWhatsAppEvent('wa:loading',     ({ accountId }) => set(accountId, 'loading'))
+    const offLoading = window.api.onWhatsAppEvent('wa:loading',     ({ accountId }) =>
+      setConnectionStatuses(prev => prev[accountId] === 'ready' ? prev : { ...prev, [accountId]: 'loading' }))
     const offDisc    = window.api.onWhatsAppEvent('wa:disconnected', ({ accountId }) => set(accountId, 'disconnected'))
     const offErr     = window.api.onWhatsAppEvent('wa:error',       ({ accountId }) => set(accountId, 'error'))
     return () => { offReady?.(); offLoading?.(); offDisc?.(); offErr?.() }
