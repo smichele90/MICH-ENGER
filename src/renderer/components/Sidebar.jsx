@@ -3,6 +3,39 @@ import { Search, FolderPlus, CheckSquare, Clock, MessageSquare, MailCheck, Refre
 import FolderTree from './FolderTree'
 import AvatarImage from './AvatarImage'
 
+const MEDIA_LABELS = {
+  image:    '📷 Foto',
+  video:    '🎥 Video',
+  audio:    '🎵 Audio',
+  ptt:      '🎙 Vocale',
+  voice:    '🎙 Vocale',
+  sticker:  '🔵 Sticker',
+}
+
+function PreviewText({ body, mediaType, mediaFilename, isGroup, accountId }) {
+  const [resolvedBody, setResolvedBody] = useState(null)
+
+  useEffect(() => {
+    setResolvedBody(null)
+    if (!isGroup || !body || !/@\d/.test(body) || (mediaType && mediaType !== 'text')) return
+    const nums = []
+    const rx = /@(\d{1,20})/g
+    let m
+    while ((m = rx.exec(body)) !== null) nums.push(m[1])
+    if (!nums.length) return
+    window.api.resolvePhoneNumbers(accountId, nums)
+      .then(map => setResolvedBody(body.replace(/@(\d{1,20})/g, (_, n) => `@${map[n] || n}`)))
+      .catch(() => {})
+  }, [body, mediaType, isGroup, accountId])
+
+  if (mediaType && mediaType !== 'text') {
+    if (body?.trim()) return body
+    if (mediaType === 'document') return mediaFilename ? `📄 ${mediaFilename}` : '📄 Documento'
+    return MEDIA_LABELS[mediaType] ?? body ?? 'Nessun messaggio'
+  }
+  return resolvedBody ?? body ?? 'Nessun messaggio'
+}
+
 export default function Sidebar({ accountId, activeContact, activeFolder, activeView, onSelectContact, onSelectFolder, onNavigate, onManageFolder }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [contacts, setContacts] = useState([])
@@ -321,7 +354,13 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                         fontSize: 11, color: item.unread_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
                       }}>
-                        {item.last_message_body || 'Nessun messaggio'}
+                        <PreviewText
+                          body={item.last_message_body}
+                          mediaType={item.last_message_type}
+                          mediaFilename={item.last_message_filename}
+                          isGroup={!!item.is_group}
+                          accountId={accountId}
+                        />
                       </div>
                     )}
                   </div>
