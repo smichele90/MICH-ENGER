@@ -19,6 +19,7 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false)
   const [isMaximized, setIsMaximized] = useState(false)
   const [managingFolder, setManagingFolder] = useState(null)
+  const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
 
   // Carica tema e accounts all'avvio
   useEffect(() => {
@@ -167,6 +168,7 @@ export default function App() {
 
         {/* Sidebar */}
         <Sidebar
+          key={sidebarRefreshKey}
           accountId={activeAccount?.id}
           activeContact={activeContact}
           activeFolder={activeFolder}
@@ -208,7 +210,10 @@ export default function App() {
         <FolderContactManager
           folder={managingFolder}
           accountId={activeAccount?.id}
-          onClose={() => setManagingFolder(null)}
+          onClose={() => {
+            setManagingFolder(null)
+            setSidebarRefreshKey(prev => prev + 1)
+          }}
         />
       )}
     </>

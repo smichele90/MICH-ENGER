@@ -262,9 +262,13 @@ body {
   border-radius: var(--radius-full); display: flex; align-items: center; justify-content: center;
 }
 .sidebar-item__chevron {
-  color: var(--text-muted); transition: transform var(--transition); flex-shrink: 0;
+  color: var(--text-muted);
+  transition: var(--transition);
+  opacity: 0.6;
 }
-.sidebar-item__chevron--open { transform: rotate(90deg); }
+.sidebar-item__chevron--open {
+  opacity: 1;
+}
 
 .folder-member-list {
   display: flex;

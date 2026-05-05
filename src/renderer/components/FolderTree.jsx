@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ChevronRight, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal, Users } from 'lucide-react'
+import { ChevronDown, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal, Users } from 'lucide-react'
 
 export default function FolderTree({ folders, activeFolder, activeContact, onSelect, onSelectContact, onRefresh, onManage, depth = 0 }) {
   return (
@@ -97,7 +97,7 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
         style={{ paddingLeft: 16 + depth * 8 }}
       >
         <span className={`sidebar-item__chevron ${isOpen ? 'sidebar-item__chevron--open' : ''}`} onClick={handleToggle}>
-          <ChevronRight size={14} />
+          <ChevronDown size={14} />
         </span>
 
         <div className="sidebar-item__icon" style={{ color: folder.color || 'var(--text-muted)' }}>
