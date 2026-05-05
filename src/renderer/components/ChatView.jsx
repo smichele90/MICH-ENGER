@@ -88,7 +88,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       const t = setTimeout(() => {
         el.classList.remove('msg-highlight')
         onHighlightDone?.()
-      }, 2500)
+      }, 5000)
       return () => clearTimeout(t)
     }
   }, [highlightMessageId, messages])
