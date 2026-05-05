@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { X, Send, Eye, Folder, User, Users, Clock, Repeat, AlertTriangle } from 'lucide-react'
+import { X, Send, Eye, Folder, User, Users, Clock, Repeat, AlertTriangle, Search } from 'lucide-react'
 
 const RECURRENCE_OPTS = [
   { value: 'once',    label: 'Una volta sola' },
@@ -21,6 +21,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
   const [contacts, setContacts] = useState([])
   const [folders, setFolders] = useState([])
   const [folderCounts, setFolderCounts] = useState({})
+  const [targetSearch, setTargetSearch] = useState('')
 
   const [form, setForm] = useState(() => ({
     target_type: editing?.target_type || (initialContact ? (initialContact.is_group ? 'group' : 'contact') : 'contact'),
@@ -58,6 +59,14 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
       : contacts.filter(c => !c.is_group)
     return filtered.map(c => ({ id: c.id, name: c.name || c.push_name || c.phone_number, hint: c.phone_number || '' }))
   }, [form.target_type, contacts, folders, folderCounts])
+
+  const filteredTargetList = useMemo(() => {
+    if (!targetSearch.trim()) return targetList
+    const q = targetSearch.toLowerCase()
+    return targetList.filter(t =>
+      t.name?.toLowerCase().includes(q) || t.hint?.toLowerCase().includes(q)
+    )
+  }, [targetList, targetSearch])
 
   const selectedTargetName = useMemo(() => {
     const t = targetList.find(x => String(x.id) === String(form.target_id))
@@ -127,7 +136,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
                 <button
                   key={opt.v}
                   className={`btn ${form.target_type === opt.v ? 'btn--primary' : 'btn--ghost'}`}
-                  onClick={() => setForm(f => ({ ...f, target_type: opt.v, target_id: '' }))}
+                  onClick={() => { setForm(f => ({ ...f, target_type: opt.v, target_id: '' })); setTargetSearch('') }}
                   type="button"
                   style={{ flex: 1 }}
                 >
@@ -137,16 +146,36 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
             </div>
           </div>
 
-          {/* Target select */}
+          {/* Target select con ricerca */}
           <div>
-            <label style={lblStyle}>Seleziona {form.target_type === 'folder' ? 'cartella' : (form.target_type === 'group' ? 'gruppo' : 'contatto')}</label>
-            <select className="chat-input" value={form.target_id}
-              onChange={e => setForm(f => ({ ...f, target_id: e.target.value }))}>
-              <option value="">— Nessuno —</option>
-              {targetList.map(t => (
-                <option key={t.id} value={t.id}>{t.name}{t.hint ? ` · ${t.hint}` : ''}</option>
+            <label style={lblStyle}>
+              Seleziona {form.target_type === 'folder' ? 'cartella' : (form.target_type === 'group' ? 'gruppo' : 'contatto')}
+            </label>
+            <div style={{ position: 'relative', marginBottom: 6 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <input
+                className="chat-input"
+                style={{ paddingLeft: 32 }}
+                placeholder="Cerca..."
+                value={targetSearch}
+                onChange={e => setTargetSearch(e.target.value)}
+              />
+            </div>
+            <div style={{ maxHeight: 180, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--bg-input)' }}>
+              {filteredTargetList.length === 0 ? (
+                <div style={{ padding: '10px 14px', color: 'var(--text-muted)', fontSize: 13 }}>Nessun risultato</div>
+              ) : filteredTargetList.map(t => (
+                <div
+                  key={t.id}
+                  className={`sidebar-item ${String(form.target_id) === String(t.id) ? 'sidebar-item--active' : ''}`}
+                  onClick={() => setForm(f => ({ ...f, target_id: String(t.id) }))}
+                  style={{ padding: '8px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                >
+                  <span style={{ fontSize: 13, fontWeight: String(form.target_id) === String(t.id) ? 600 : 400 }}>{t.name}</span>
+                  {t.hint && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8, flexShrink: 0 }}>{t.hint}</span>}
+                </div>
               ))}
-            </select>
+            </div>
           </div>
 
           {/* Body */}
