@@ -13,7 +13,7 @@ const STATUS_COLS = [
 const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#3b82f6' }
 const PRIORITY_LABELS = { high: 'Alta', medium: 'Media', low: 'Bassa' }
 
-export default function TaskView() {
+export default function TaskView({ accountId, onNavigate }) {
   const [tasks, setTasks] = useState([])
   const [showCreate, setShowCreate] = useState(false)
   const [editTask, setEditTask] = useState(null)
@@ -181,6 +181,13 @@ export default function TaskView() {
           onClose={() => setEditTask(null)}
           onSaved={loadTasks}
           onDeleted={loadTasks}
+          onNavigateToMessage={async (messageId) => {
+            const msg = await window.api.getMessageById(messageId)
+            if (msg) {
+              setEditTask(null)
+              onNavigate?.('chat', { contactId: msg.contact_id, messageId: msg.id })
+            }
+          }}
         />
       )}
     </>

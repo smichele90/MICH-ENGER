@@ -6,7 +6,7 @@ import MediaPreview from './MediaPreview'
 import MessageBody from './MessageBody'
 import AvatarImage from './AvatarImage'
 
-export default function ChatView({ contact, accountId }) {
+export default function ChatView({ contact, accountId, highlightMessageId, onHighlightDone }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -77,6 +77,21 @@ export default function ChatView({ contact, accountId }) {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Scroll + highlight sul messaggio sorgente quando richiesto da TaskDetail
+  useEffect(() => {
+    if (!highlightMessageId || !messages.length) return
+    const el = document.getElementById(`msg-${highlightMessageId}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.classList.add('msg-highlight')
+      const t = setTimeout(() => {
+        el.classList.remove('msg-highlight')
+        onHighlightDone?.()
+      }, 2500)
+      return () => clearTimeout(t)
+    }
+  }, [highlightMessageId, messages])
 
   // Auto-resize textarea
   const handleInputChange = (e) => {
@@ -326,7 +341,7 @@ export default function ChatView({ contact, accountId }) {
                   <span style={{ background: 'var(--bg-card)', padding: '4px 14px', borderRadius: 12 }}>{msgDate}</span>
                 </div>
               )}
-              <div className={`message ${msg.is_from_me ? 'message--me' : 'message--other'}`}>
+              <div id={`msg-${msg.id}`} className={`message ${msg.is_from_me ? 'message--me' : 'message--other'}`}>
                 <div className="message__bubble">
                   {msg.media_type && msg.media_type !== 'text' && (
                     <MediaPreview

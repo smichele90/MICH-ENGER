@@ -25,7 +25,7 @@ const RECURRENCES = [
  * Modal di dettaglio/editing di un task esistente.
  * Props: task, onClose, onSaved, onDeleted
  */
-export default function TaskDetailModal({ task, onClose, onSaved, onDeleted }) {
+export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onNavigateToMessage }) {
   const [form, setForm] = useState({
     title: task.title || '',
     description: task.description || '',
@@ -201,9 +201,20 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted }) {
           </div>
 
           {task.source_message_id && (
-            <div style={{ fontSize: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <ExternalLink size={12} /> Creato da messaggio #{task.source_message_id}
-            </div>
+            <button
+              onClick={() => onNavigateToMessage?.(task.source_message_id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, width: '100%',
+                background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+                borderLeft: '3px solid var(--accent)', borderRadius: '0 6px 6px 0',
+                padding: '8px 12px', cursor: 'pointer', textAlign: 'left'
+              }}
+            >
+              <ExternalLink size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
+                Vai al messaggio originale
+              </span>
+            </button>
           )}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>

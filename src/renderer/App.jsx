@@ -21,6 +21,7 @@ export default function App() {
   const [managingFolder, setManagingFolder] = useState(null)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
   const [connectionStatuses, setConnectionStatuses] = useState({})
+  const [highlightMessageId, setHighlightMessageId] = useState(null)
 
   // Carica tema e accounts all'avvio
   useEffect(() => {
@@ -131,6 +132,7 @@ export default function App() {
         const found = all.find(c => c.id === options.contactId)
         if (found) setActiveContact(found)
       }
+      if (options.messageId) setHighlightMessageId(options.messageId)
     } else {
       setActiveContact(null)
       setActiveFolder(null)
@@ -141,13 +143,13 @@ export default function App() {
   const renderMainView = () => {
     switch (activeView) {
       case 'tasks':
-        return <TaskView />
+        return <TaskView accountId={activeAccount?.id} onNavigate={handleNavigate} />
       case 'scheduled':
         return <ScheduledList accountId={activeAccount?.id} />
       case 'chat':
       default:
         if (activeContact) {
-          return <ChatView contact={activeContact} accountId={activeAccount?.id} />
+          return <ChatView contact={activeContact} accountId={activeAccount?.id} highlightMessageId={highlightMessageId} onHighlightDone={() => setHighlightMessageId(null)} />
         }
         return (
           <div className="empty-state">

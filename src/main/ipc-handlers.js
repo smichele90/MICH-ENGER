@@ -125,6 +125,9 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
         data.media_path || null, data.media_mime || null, data.media_filename || null, data.is_from_me ? 1 : 0, data.timestamp, data.status || 'sent')
     return { id: result.lastInsertRowid }
   })
+  ipcMain.handle('messages:getById', (_, messageId) => {
+    return db.prepare('SELECT m.*, c.account_id FROM messages m JOIN contacts c ON c.id = m.contact_id WHERE m.id = ?').get(messageId)
+  })
   ipcMain.handle('messages:search', (_, accountId, query) => {
     return db.prepare('SELECT m.*, c.name as contact_name FROM messages m JOIN contacts c ON c.id = m.contact_id WHERE m.account_id = ? AND m.body LIKE ? ORDER BY m.timestamp DESC LIMIT 50')
       .all(accountId, `%${query}%`)
