@@ -82,5 +82,5 @@ export default function MessageBody({ body, accountId, isGroup }) {
     setResolvedBody(parts.length > 0 ? parts : text)
   }
 
-  return <div style={{ wordBreak: 'break-word' }}>{resolvedBody || body}</div>
+  return <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{resolvedBody || body}</div>
 }
