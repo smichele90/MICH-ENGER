@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Search, FolderPlus, ChevronRight, Users, User, CheckSquare, Clock, MessageSquare, Hash, MailCheck, RefreshCw } from 'lucide-react'
 import FolderTree from './FolderTree'
 import AvatarImage from './AvatarImage'
@@ -11,7 +11,22 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
   const [expandedSections, setExpandedSections] = useState({ folders: true, contacts: true, groups: true })
   const [showNewFolder, setShowNewFolder] = useState(false)
   const [newFolderName, setNewFolderName] = useState('')
+  const [creatingFolder, setCreatingFolder] = useState(false)
   const [sidebarTab, setSidebarTab] = useState('recent') // recent, contacts, groups
+
+  // Debounce per ricerca
+  const searchTimeoutRef = useRef(null)
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
+
+  useEffect(() => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+    }, 300)
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
+    }
+  }, [searchQuery])
 
   // Carica dati quando cambia l'account
   useEffect(() => {
@@ -47,44 +62,56 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
     }
   }, [accountId, activeContact?.id])
 
-  const toggleSection = (section) => {
+  const toggleSection = useCallback((section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
-  }
+  }, [])
 
   // Crea nuova cartella
-  const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) return
-    const result = await window.api.createFolder({ name: newFolderName.trim() })
-    if (result?.id) {
-      setFolders(await window.api.getFolders())
-      setNewFolderName('')
-      setShowNewFolder(false)
+  const handleCreateFolder = useCallback(async () => {
+    if (!newFolderName.trim() || creatingFolder) return
+    setCreatingFolder(true)
+    try {
+      const result = await window.api.createFolder({ name: newFolderName.trim() })
+      if (result?.id) {
+        setFolders(await window.api.getFolders())
+        setNewFolderName('')
+        setShowNewFolder(false)
+      }
+    } finally {
+      setCreatingFolder(false)
     }
-  }
+  }, [newFolderName, creatingFolder])
 
   // Filtra contatti per ricerca
-  const filteredContacts = searchQuery
-    ? contacts.filter(c => c.name?.toLowerCase().includes(searchQuery.toLowerCase()) || c.phone_number?.includes(searchQuery))
-    : contacts
+  const filteredContacts = useMemo(() => {
+    if (!debouncedSearchQuery) return contacts
+    const q = debouncedSearchQuery.toLowerCase()
+    return contacts.filter(c => 
+      c.name?.toLowerCase().includes(q) || 
+      c.phone_number?.includes(debouncedSearchQuery)
+    )
+  }, [contacts, debouncedSearchQuery])
 
-  const filteredGroups = searchQuery
-    ? groups.filter(g => g.name?.toLowerCase().includes(searchQuery.toLowerCase()))
-    : groups
+  const filteredGroups = useMemo(() => {
+    if (!debouncedSearchQuery) return groups
+    const q = debouncedSearchQuery.toLowerCase()
+    return groups.filter(g => g.name?.toLowerCase().includes(q))
+  }, [groups, debouncedSearchQuery])
 
   // CRONOLOGIA: unione di contatti + gruppi con messaggi, ordinati per ultima attività
   // (come WhatsApp Web). Filtra per searchQuery se presente.
-  const recentItems = React.useMemo(() => {
+  const recentItems = useMemo(() => {
     const all = [...contacts, ...groups]
       .filter(c => c.last_message_at)
       .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))
-    if (!searchQuery) return all
-    const q = searchQuery.toLowerCase()
+    if (!debouncedSearchQuery) return all
+    const q = debouncedSearchQuery.toLowerCase()
     return all.filter(c =>
       c.name?.toLowerCase().includes(q) ||
       c.push_name?.toLowerCase().includes(q) ||
-      c.phone_number?.includes(searchQuery)
+      c.phone_number?.includes(debouncedSearchQuery)
     )
-  }, [contacts, groups, searchQuery])
+  }, [contacts, groups, debouncedSearchQuery])
 
   // Costruisci albero cartelle
   const buildTree = useCallback((items, parentId = null) => {
@@ -94,13 +121,13 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
       .map(f => ({ ...f, children: buildTree(items, f.id) }))
   }, [])
 
-  const folderTree = buildTree(folders)
+  const folderTree = useMemo(() => buildTree(folders), [folders, buildTree])
 
-  const refreshFolders = async () => {
+  const refreshFolders = useCallback(async () => {
     setFolders(await window.api.getFolders())
-  }
+  }, [])
 
-  const formatLastTime = (ts) => {
+  const formatLastTime = useCallback((ts) => {
     if (!ts) return ''
     const d = new Date(ts)
     const now = new Date()
@@ -108,10 +135,16 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
       return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
     }
     return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })
-  }
+  }, [])
 
-  const unreadContacts = contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0)
-  const unreadGroups = groups.reduce((sum, c) => sum + (c.unread_count || 0), 0)
+  const unreadContacts = useMemo(() => 
+    contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0),
+    [contacts]
+  )
+  const unreadGroups = useMemo(() => 
+    groups.reduce((sum, c) => sum + (c.unread_count || 0), 0),
+    [groups]
+  )
   const unreadTotal = unreadContacts + unreadGroups
 
   return (
@@ -184,8 +217,19 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
               />
               <button 
                 onClick={handleCreateFolder}
-                style={{ background: 'var(--accent)', color: 'white', border: 'none', borderRadius: 4, padding: '0 8px', cursor: 'pointer', fontSize: 12 }}
-              >OK</button>
+                disabled={creatingFolder}
+                style={{ 
+                  background: creatingFolder ? 'var(--text-muted)' : 'var(--accent)', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: 4, 
+                  padding: '0 8px', 
+                  cursor: creatingFolder ? 'not-allowed' : 'pointer', 
+                  fontSize: 12 
+                }}
+              >
+                {creatingFolder ? '...' : 'OK'}
+              </button>
             </div>
           )}
           {expandedSections.folders && (
