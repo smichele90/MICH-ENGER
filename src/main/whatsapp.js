@@ -130,7 +130,29 @@ class WhatsAppManager {
       const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(contactId)
       if (!contact) throw new Error('Contatto non trovato')
       try {
-        const msg = await client.sendMessage(contact.whatsapp_id, body, options)
+        let payload = body
+        const sendOptions = {}
+
+        if (options.caption) {
+          sendOptions.caption = options.caption
+        }
+
+        if (options.mediaPath || options.mediaData) {
+          if (options.mediaPath) {
+            if (!fs.existsSync(options.mediaPath)) {
+              throw new Error(`File non trovato: ${options.mediaPath}`)
+            }
+            payload = MessageMedia.fromFilePath(options.mediaPath)
+          } else {
+            if (!options.mediaMime || !options.mediaData) {
+              throw new Error('Dati media incompleti')
+            }
+            const filename = options.filename || `file.${options.mediaMime.split('/')[1] || 'bin'}`
+            payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
+          }
+        }
+
+        const msg = await client.sendMessage(contact.whatsapp_id, payload, sendOptions)
         await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         return { id: msg.id.id, timestamp: msg.timestamp }
       } catch (err) {

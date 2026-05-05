@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Search, FolderPlus, ChevronRight, Users, User, CheckSquare, Clock, MessageSquare, Hash, MailCheck, RefreshCw } from 'lucide-react'
 import FolderTree from './FolderTree'
+import AvatarImage from './AvatarImage'
 
 export default function Sidebar({ accountId, activeContact, activeFolder, activeView, onSelectContact, onSelectFolder, onNavigate, onManageFolder }) {
   const [searchQuery, setSearchQuery] = useState('')
@@ -255,30 +256,13 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                   fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
                   overflow: 'hidden'
                 }}>
-                  {(item.profile_pic_path || item.profile_pic_url) ? (
-                    <>
-                      <img 
-                        src={item.profile_pic_path ? `file:///${item.profile_pic_path.replace(/\\/g, '/')}` : item.profile_pic_url}
-                        alt="" 
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-                        onError={(e) => {
-                          if (item.profile_pic_path && item.profile_pic_url && e.target.src.startsWith('file:///')) {
-                            e.target.src = item.profile_pic_url
-                            return
-                          }
-                          e.target.style.display = 'none';
-                          e.target.nextSibling.style.display = 'flex';
-                        }}
-                      />
-                      <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-                        {item.is_group ? <Users size={16} /> : ((item.name || item.push_name) ? (item.name || item.push_name).charAt(0).toUpperCase() : <User size={16} />)}
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-                      {item.is_group ? <Users size={16} /> : ((item.name || item.push_name) ? (item.name || item.push_name).charAt(0).toUpperCase() : <User size={16} />)}
-                    </div>
-                  )}
+                  <AvatarImage
+                    profilePicPath={item.profile_pic_path}
+                    profilePicUrl={item.profile_pic_url}
+                    isGroup={item.is_group}
+                    className="sidebar-item__avatar"
+                    style={{ width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-hover)' }}
+                  />
                 </div>
                 <div style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>

@@ -4,6 +4,7 @@ import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import MediaPreview from './MediaPreview'
 import MessageBody from './MessageBody'
+import AvatarImage from './AvatarImage'
 
 export default function ChatView({ contact, accountId }) {
   const [messages, setMessages] = useState([])
@@ -13,6 +14,13 @@ export default function ChatView({ contact, accountId }) {
   const [showSchedule, setShowSchedule] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
   const [downloadingMedia, setDownloadingMedia] = useState(new Set())
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [recording, setRecording] = useState(false)
+  const [recordingStatus, setRecordingStatus] = useState('')
+  const mediaRecorderRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+  const recordingCanceledRef = useRef(false)
+  const recordingTimerRef = useRef(null)
 
   // Scarica media on-demand
   const handleDownloadMedia = async (msgId) => {
@@ -84,13 +92,17 @@ export default function ChatView({ contact, accountId }) {
 
   // Invia messaggio
   const handleSend = async () => {
-    if (!input.trim()) return
-    
-    // Invia tramite WhatsApp
+    if (!input.trim() && !selectedFile) return
+
     try {
-      await window.api.sendMessage(accountId, contact.id, input.trim())
-      setInput('')
-      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      if (selectedFile) {
+        await sendMediaMessage({ mediaPath: selectedFile.path })
+        setSelectedFile(null)
+      } else {
+        await window.api.sendMessage(accountId, contact.id, input.trim())
+        setInput('')
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
+      }
     } catch (err) {
       console.error('Errore invio:', err)
       alert('Errore invio messaggio: riprova tra qualche istante.')
@@ -102,6 +114,150 @@ export default function ChatView({ contact, accountId }) {
       e.preventDefault()
       handleSend()
     }
+  }
+
+  const getBase64FromBlob = (blob) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const dataUrl = reader.result
+      const base64 = dataUrl.split(',')[1] || ''
+      resolve(base64)
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+
+  const getFileName = (filePath) => {
+    const parts = filePath.split(/[/\\]/)
+    return parts[parts.length - 1] || filePath
+  }
+
+  const isImageFile = (filePath) => /\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(filePath)
+
+  const getSafeFileUrl = (filePath) => {
+    try {
+      return encodeURI(`file://${filePath}`)
+    } catch {
+      return `file://${filePath}`
+    }
+  }
+
+  const sendMediaMessage = async ({ mediaPath, mediaData, mediaMime, filename }) => {
+    if (!contact?.id) return
+    try {
+      setLoading(true)
+      await window.api.sendMessage(accountId, contact.id, input.trim() || '', {
+        caption: input.trim() || undefined,
+        mediaPath,
+        mediaData,
+        mediaMime,
+        filename
+      })
+      setInput('')
+      if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    } catch (err) {
+      console.error('Errore invio media:', err)
+      alert('Errore invio allegato: riprova tra qualche istante.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 B'
+    const k = 1024
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`
+  }
+
+  const handleSelectFile = async (options) => {
+    try {
+      const result = await window.api.selectFile(options)
+      if (result?.canceled || !result?.filePaths?.length) return
+      const filePath = result.filePaths[0]
+      const info = await window.api.getFileInfo(filePath)
+      setSelectedFile({
+        path: filePath,
+        name: getFileName(filePath),
+        isImage: isImageFile(filePath),
+        size: info?.size ?? null,
+        mime: info?.mime ?? null
+      })
+    } catch (err) {
+      console.error('Errore selezione file:', err)
+      alert('Impossibile selezionare il file.')
+    }
+  }
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      const chunks = []
+
+      recorder.addEventListener('dataavailable', (event) => {
+        if (event.data && event.data.size > 0) {
+          chunks.push(event.data)
+        }
+      })
+
+      recorder.addEventListener('stop', async () => {
+        stream.getTracks().forEach((track) => track.stop())
+        clearInterval(recordingTimerRef.current)
+        recordingTimerRef.current = null
+        if (recordingCanceledRef.current) {
+          recordingCanceledRef.current = false
+          setRecording(false)
+          setRecordingStatus('')
+          return
+        }
+        const blob = new Blob(chunks, { type: 'audio/webm' })
+        const base64 = await getBase64FromBlob(blob)
+        await sendMediaMessage({
+          mediaData: base64,
+          mediaMime: blob.type,
+          filename: `audio-${Date.now()}.webm`
+        })
+        setRecording(false)
+        setRecordingStatus('')
+      })
+
+      recorder.start()
+      mediaRecorderRef.current = recorder
+      mediaStreamRef.current = stream
+      setRecording(true)
+      let seconds = 0
+      setRecordingStatus('00:00')
+      recordingTimerRef.current = window.setInterval(() => {
+        seconds += 1
+        const m = String(Math.floor(seconds / 60)).padStart(2, '0')
+        const s = String(seconds % 60).padStart(2, '0')
+        setRecordingStatus(`${m}:${s}`)
+      }, 1000)
+    } catch (err) {
+      console.error('Errore avvio registrazione:', err)
+      alert('Impossibile avviare la registrazione audio.')
+    }
+  }
+
+  const handleStopRecording = () => {
+    if (!mediaRecorderRef.current) return
+    mediaRecorderRef.current.stop()
+  }
+
+  const handleCancelRecording = () => {
+    recordingCanceledRef.current = true
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop()
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+    }
+    setRecording(false)
+    setRecordingStatus('')
+    clearInterval(recordingTimerRef.current)
+    recordingTimerRef.current = null
   }
 
   const formatTime = (ts) => {
@@ -131,24 +287,13 @@ export default function ChatView({ contact, accountId }) {
       {/* Header chat */}
       <div className="main-header">
         <div className="main-header__info">
-          <div className="main-header__avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {(contact.profile_pic_path || contact.profile_pic_url) ? (
-              <>
-                <img src={contact.profile_pic_path ? `file:///${contact.profile_pic_path.replace(/\\/g, '/')}` : contact.profile_pic_url} alt="" onError={(e) => {
-                  if (contact.profile_pic_path && contact.profile_pic_url && e.target.src.startsWith('file:///')) {
-                    e.target.src = contact.profile_pic_url
-                    return
-                  }
-                  e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'
-                }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ display: 'none', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-                  {contact.is_group ? <Users size={18} /> : <User size={18} />}
-                </div>
-              </>
-            ) : (
-              contact.is_group ? <Users size={18} /> : <User size={18} />
-            )}
-          </div>
+          <AvatarImage
+            profilePicPath={contact.profile_pic_path}
+            profilePicUrl={contact.profile_pic_url}
+            isGroup={contact.is_group}
+            className="main-header__avatar"
+            style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          />
           <div>
             <div className="main-header__name">{contact.name || contact.push_name || contact.phone_number}</div>
             <div className="main-header__status">
@@ -282,10 +427,47 @@ export default function ChatView({ contact, accountId }) {
       {/* Input messaggio */}
       <div className="chat-input-area">
         <div className="chat-input-actions">
-          <button className="chat-input-btn" title="Allegato"><Paperclip size={18} /></button>
-          <button className="chat-input-btn" title="Immagine"><Image size={18} /></button>
-          <button className="chat-input-btn" title="Audio"><Mic size={18} /></button>
+          <button className="chat-input-btn" title="Allegato" onClick={() => handleSelectFile({ properties: ['openFile'] })}>
+            <Paperclip size={18} />
+          </button>
+          <button className="chat-input-btn" title="Immagine" onClick={() => handleSelectFile({ properties: ['openFile'], filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }] })}>
+            <Image size={18} />
+          </button>
+          <button
+            className="chat-input-btn"
+            title={recording ? 'Ferma registrazione' : 'Audio'}
+            onClick={recording ? handleStopRecording : handleStartRecording}
+            style={recording ? { color: 'var(--accent)' } : undefined}
+          >
+            <Mic size={18} />
+          </button>
         </div>
+        {selectedFile && (
+          <div className="chat-file-preview">
+            {selectedFile.isImage ? (
+              <img className="chat-file-preview__thumb" src={getSafeFileUrl(selectedFile.path)} alt={selectedFile.name} />
+            ) : (
+              <div className="chat-file-preview__thumb chat-file-preview__thumb--file">📎</div>
+            )}
+            <div className="chat-file-preview__info">
+              <div>
+                <div className="chat-file-preview__name">{selectedFile.name}</div>
+                <div className="chat-file-preview__meta">
+                  {selectedFile.mime ? `${selectedFile.mime}` : 'Tipo sconosciuto'}
+                  {selectedFile.size ? ` · ${formatBytes(selectedFile.size)}` : ''}
+                </div>
+              </div>
+              <button className="btn btn--ghost" type="button" onClick={() => setSelectedFile(null)}>Rimuovi</button>
+            </div>
+          </div>
+        )}
+      {recording && (
+        <div className="chat-recording-indicator" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', color: 'var(--accent)', fontSize: 13 }}>
+          <span>Registrazione in corso</span>
+          <span>{recordingStatus}</span>
+          <button className="chat-input-btn" title="Annulla" onClick={handleCancelRecording} style={{ color: 'var(--text-danger)' }}>✕</button>
+        </div>
+      )}
         <div className="chat-input-wrapper">
           <textarea
             ref={textareaRef}

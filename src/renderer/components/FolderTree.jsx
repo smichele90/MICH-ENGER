@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { ChevronDown, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal, Users } from 'lucide-react'
+import AvatarImage from './AvatarImage'
 
 export default function FolderTree({ folders, activeFolder, activeContact, onSelect, onSelectContact, onRefresh, onManage, depth = 0 }) {
   return (
@@ -160,23 +161,12 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
                 className={`folder-member-item ${activeContact?.id === member.id ? 'folder-member-item--active' : ''}`}
                 onClick={() => onSelectContact?.(member)}
               >
-                <div className="folder-member-item__avatar">
-                  {(member.profile_pic_path || member.profile_pic_url) ? (
-                    <img
-                      src={member.profile_pic_path ? `file:///${member.profile_pic_path.replace(/\\/g, '/')}` : member.profile_pic_url}
-                      alt=""
-                      onError={(e) => {
-                        if (member.profile_pic_path && member.profile_pic_url && e.target.src.startsWith('file:///')) {
-                          e.target.src = member.profile_pic_url
-                          return
-                        }
-                        e.target.style.display = 'none'
-                      }}
-                    />
-                  ) : (
-                    <Users size={16} />
-                  )}
-                </div>
+                <AvatarImage
+                  profilePicPath={member.profile_pic_path}
+                  profilePicUrl={member.profile_pic_url}
+                  isGroup={member.is_group}
+                  className="folder-member-item__avatar"
+                />
                 <div className="folder-member-item__text">
                   <div className="folder-member-item__name">{member.name || member.push_name || member.phone_number}</div>
                   <div className="folder-member-item__subtext">{member.is_group ? 'Gruppo' : (member.phone_number || 'Contatto')}</div>

@@ -1,4 +1,5 @@
-const { ipcMain, shell } = require('electron')
+const { ipcMain, shell, dialog } = require('electron')
+const fs = require('fs')
 const { dedupeContacts } = require('./database')
 
 function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
@@ -256,8 +257,32 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     return true
   })
 
+  ipcMain.handle('file:select', async (_, options = {}) => {
+    const result = await dialog.showOpenDialog(options)
+    return result
+  })
+  ipcMain.handle('file:getInfo', async (_, filePath) => {
+    try {
+      const stat = fs.statSync(filePath)
+      return {
+        size: stat.size,
+        name: filePath.split(/[/\\]/).pop() || filePath,
+        mime: filePath.split('.').pop() ? `application/${filePath.split('.').pop()}` : 'application/octet-stream'
+      }
+    } catch (err) {
+      console.error('[IPC] file:getInfo error', err)
+      return null
+    }
+  })
   ipcMain.handle('file:open', async (_, filePath) => {
     return shell.openPath(filePath)
+  })
+  ipcMain.handle('file:exists', (_, filePath) => {
+    try {
+      return fs.existsSync(filePath)
+    } catch {
+      return false
+    }
   })
 
   // MAINTENANCE

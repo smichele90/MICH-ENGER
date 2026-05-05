@@ -28,7 +28,10 @@ contextBridge.exposeInMainWorld('api', {
   // Folders
   getFolders: () => ipcRenderer.invoke('folders:getAll'),
   createFolder: (data) => ipcRenderer.invoke('folders:create', data),
+  selectFile: (options) => ipcRenderer.invoke('file:select', options),
+  getFileInfo: (filePath) => ipcRenderer.invoke('file:getInfo', filePath),
   openFile: (filePath) => ipcRenderer.invoke('file:open', filePath),
+  fileExists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   updateFolder: (id, data) => ipcRenderer.invoke('folders:update', id, data),
   deleteFolder: (id) => ipcRenderer.invoke('folders:delete', id),
   getFolderMembers: (folderId) => ipcRenderer.invoke('folders:getMembers', folderId),

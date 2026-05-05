@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Folder, Users, User, Settings, Send, Trash2, MessageSquare } from 'lucide-react'
+import AvatarImage from './AvatarImage'
 import FolderContactManager from './FolderContactManager'
 import ScheduleMessageModal from './ScheduleMessageModal'
 
@@ -65,30 +66,12 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
           <div className="folder-members">
             {members.map(c => (
               <div key={c.id} className="folder-member-row" onClick={() => onSelectContact?.(c)}>
-                <div className="folder-member-row__avatar">
-                  {(c.profile_pic_path || c.profile_pic_url) ? (
-                    <>
-                      <img
-                        src={c.profile_pic_path ? `file:///${c.profile_pic_path.replace(/\\/g, '/')}` : c.profile_pic_url}
-                        alt=""
-                        onError={(e) => {
-                          if (c.profile_pic_path && c.profile_pic_url && e.target.src.startsWith('file:///')) {
-                            e.target.src = c.profile_pic_url
-                            return
-                          }
-                          e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'
-                        }}
-                      />
-                      <div className="folder-member-row__avatar-fallback">
-                        {c.is_group ? <Users size={16} /> : <User size={16} />}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="folder-member-row__avatar-fallback">
-                      {c.is_group ? <Users size={16} /> : <User size={16} />}
-                    </div>
-                  )}
-                </div>
+                <AvatarImage
+                  profilePicPath={c.profile_pic_path}
+                  profilePicUrl={c.profile_pic_url}
+                  isGroup={c.is_group}
+                  className="folder-member-row__avatar"
+                />
                 <div className="folder-member-row__info">
                   <div className="folder-member-row__name">{c.name || c.push_name || c.phone_number}</div>
                   <div className="folder-member-row__meta">{c.is_group ? 'Gruppo' : (c.phone_number || 'Contatto')}</div>
