@@ -79,14 +79,14 @@ class WhatsAppManager {
         if (chat) {
           await chat.sendSeen()
           this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE id = ?').run(contactId)
-          this.safeSend('wa:contacts-updated', accountId)
+          this.safeSend('wa:contacts-updated', { accountId })
         }
       } catch (err) { console.error('[WA] markAsRead error:', err) }
     })
 
     ipcMain.handle('wa:markAllAsRead', async (_, accountId) => {
       this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE account_id = ?').run(accountId)
-      this.safeSend('wa:contacts-updated', accountId)
+      this.safeSend('wa:contacts-updated', { accountId })
       return true
     })
 
