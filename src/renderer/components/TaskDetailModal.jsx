@@ -144,11 +144,19 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
           </div>
 
           <div style={{ background: 'var(--bg-secondary)', padding: 12, borderRadius: 8 }}>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.notify}
-                onChange={e => setForm(f => ({ ...f, notify: e.target.checked }))} />
-              <Bell size={14} /> <span style={{ fontSize: 13 }}>Notifica desktop</span>
-            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                id="task-notify-checkbox"
+                type="checkbox"
+                checked={form.notify}
+                onChange={e => setForm(f => ({ ...f, notify: e.target.checked }))}
+                style={{ cursor: 'pointer' }}
+              />
+              <Bell size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <label htmlFor="task-notify-checkbox" style={{ fontSize: 13, cursor: 'pointer', margin: 0 }}>
+                Notifica desktop
+              </label>
+            </div>
             {form.notify && (
               <input type="datetime-local" className="chat-input" style={{ marginTop: 8 }}
                 value={form.notify_at}
