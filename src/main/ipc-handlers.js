@@ -24,7 +24,9 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     return db.prepare('SELECT * FROM accounts ORDER BY created_at').all()
   })
   ipcMain.handle('accounts:create', (_, data) => {
+    console.log('[IPC] accounts:create chiamato', data)
     const result = db.prepare('INSERT INTO accounts (name, phone_number) VALUES (?, ?)').run(data.name || '', data.phone_number || '')
+    console.log('[IPC] accounts:create → id:', result.lastInsertRowid)
     return { id: result.lastInsertRowid }
   })
   ipcMain.handle('accounts:update', (_, id, data) => {
