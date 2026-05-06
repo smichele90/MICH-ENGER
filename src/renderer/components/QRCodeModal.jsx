@@ -4,7 +4,7 @@ import QRCode from 'qrcode'
 
 export default function QRCodeModal({ onClose, onConnected }) {
   const [qrDataUrl, setQrDataUrl] = useState('')
-  const [status, setStatus] = useState('loading') // loading, qr, connecting, ready
+  const [status, setStatus] = useState('loading') // loading, qr, connecting, ready, error
   const [error, setError] = useState(null)
   const initialized = useRef(false)
   const tempAccountIdRef = useRef(null)
@@ -12,21 +12,28 @@ export default function QRCodeModal({ onClose, onConnected }) {
   const onConnectedRef = useRef(onConnected)
   useEffect(() => { onConnectedRef.current = onConnected }, [onConnected])
 
-  // Mount-once: nessuna dipendenza da stato mutabile, così non si re-registrano
-  // i listener né si scatena il cleanup prematuro.
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
 
     let cancelled = false
 
+    // Timeout: se dopo 120 secondi lo status è ancora loading/connecting, mostra errore
+    const timeoutId = setTimeout(() => {
+      if (!cancelled && !isReadyRef.current) {
+        setError('Timeout: WhatsApp non ha generato il QR code. Riprova.')
+        setStatus('error')
+      }
+    }, 120_000)
+
     const initPairing = async () => {
       try {
         const result = await window.api.createAccount({ name: 'Nuovo Account', phone_number: '' })
         if (cancelled) return
         tempAccountIdRef.current = result.id
-        console.log('[QRModal] Account creato, id:', result.id, '— avvio WhatsApp init')
+        console.log('[QRModal] Account creato, id:', result.id)
         const ok = await window.api.initializeWhatsApp(result.id)
+        console.log('[QRModal] initializeWhatsApp completato, ok:', ok)
         if (!cancelled && !ok && !isReadyRef.current) {
           setError('Inizializzazione WhatsApp non riuscita. Riprova.')
           setStatus('error')
@@ -42,11 +49,10 @@ export default function QRCodeModal({ onClose, onConnected }) {
     initPairing()
 
     const removeQrListener = window.api.onWhatsAppEvent('wa:qr', async ({ accountId: qrAccId, qr }) => {
-      console.log('[QRModal] wa:qr ricevuto, account:', qrAccId, 'atteso:', tempAccountIdRef.current)
+      console.log('[QRModal] wa:qr account:', qrAccId, 'atteso:', tempAccountIdRef.current)
       if (qrAccId !== tempAccountIdRef.current) return
       try {
         const url = await QRCode.toDataURL(qr)
-        console.log('[QRModal] QR convertito, aggiorno status → qr')
         if (!cancelled) { setQrDataUrl(url); setStatus('qr') }
       } catch (e) {
         console.error('[QRModal] QRCode.toDataURL fallito:', e)
@@ -55,7 +61,7 @@ export default function QRCodeModal({ onClose, onConnected }) {
     })
 
     const removeReadyListener = window.api.onWhatsAppEvent('wa:ready', async ({ accountId }) => {
-      console.log('[QRModal] wa:ready ricevuto, account:', accountId, 'atteso:', tempAccountIdRef.current)
+      console.log('[QRModal] wa:ready account:', accountId, 'atteso:', tempAccountIdRef.current)
       if (cancelled || accountId !== tempAccountIdRef.current) return
       isReadyRef.current = true
       setStatus('ready')
@@ -65,24 +71,27 @@ export default function QRCodeModal({ onClose, onConnected }) {
     })
 
     const removeLoadingListener = window.api.onWhatsAppEvent('wa:loading', ({ accountId: ldAccId }) => {
-      console.log('[QRModal] wa:loading ricevuto, account:', ldAccId, 'atteso:', tempAccountIdRef.current)
       if (!cancelled && ldAccId === tempAccountIdRef.current) setStatus(s => (s === 'qr' ? s : 'connecting'))
     })
 
-    const removeErrorListener = window.api.onWhatsAppEvent('wa:error', ({ accountId: errId, error }) => {
-      console.log('[QRModal] wa:error ricevuto, account:', errId, 'atteso:', tempAccountIdRef.current)
-      if (!cancelled) { setError('Errore WhatsApp: ' + error); setStatus('error') }
+    const removeErrorListener = window.api.onWhatsAppEvent('wa:error', ({ accountId: errId, error: errMsg }) => {
+      console.log('[QRModal] wa:error account:', errId, 'atteso:', tempAccountIdRef.current)
+      if (!cancelled && errId === tempAccountIdRef.current) {
+        setError('Errore WhatsApp: ' + errMsg)
+        setStatus('error')
+      }
     })
 
     return () => {
       cancelled = true
+      clearTimeout(timeoutId)
       removeQrListener?.()
       removeReadyListener?.()
       removeLoadingListener?.()
       removeErrorListener?.()
-      // Distruggi il client temporaneo SOLO se l'utente ha chiuso prima del ready
       if (!isReadyRef.current && tempAccountIdRef.current) {
         window.api.destroyWhatsApp(tempAccountIdRef.current).catch(() => {})
+        window.api.deleteAccount(tempAccountIdRef.current).catch(() => {})
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
