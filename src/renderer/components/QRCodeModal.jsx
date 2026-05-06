@@ -25,8 +25,11 @@ export default function QRCodeModal({ onClose, onConnected }) {
         const result = await window.api.createAccount({ name: 'Nuovo Account', phone_number: '' })
         if (cancelled) return
         tempAccountIdRef.current = result.id
-        await window.api.initializeWhatsApp(result.id)
-        if (!cancelled) setStatus('connecting')
+        const ok = await window.api.initializeWhatsApp(result.id)
+        if (!cancelled && !ok && !isReadyRef.current) {
+          setError('Inizializzazione WhatsApp non riuscita. Riprova.')
+          setStatus('error')
+        }
       } catch (err) {
         if (!cancelled) {
           setError('Errore durante l\'inizializzazione: ' + err.message)
@@ -55,11 +58,19 @@ export default function QRCodeModal({ onClose, onConnected }) {
       if (!cancelled) setStatus(s => (s === 'qr' ? s : 'connecting'))
     })
 
+    const removeErrorListener = window.api.onWhatsAppEvent('wa:error', ({ accountId: errId, error }) => {
+      if (errId === tempAccountIdRef.current && !cancelled) {
+        setError('Errore WhatsApp: ' + error)
+        setStatus('error')
+      }
+    })
+
     return () => {
       cancelled = true
       removeQrListener?.()
       removeReadyListener?.()
       removeLoadingListener?.()
+      removeErrorListener?.()
       // Distruggi il client temporaneo SOLO se l'utente ha chiuso prima del ready
       if (!isReadyRef.current && tempAccountIdRef.current) {
         window.api.destroyWhatsApp(tempAccountIdRef.current).catch(() => {})
