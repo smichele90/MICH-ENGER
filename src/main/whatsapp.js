@@ -1,13 +1,3 @@
-const {
-  default: makeWASocket,
-  useMultiFileAuthState,
-  DisconnectReason,
-  downloadMediaMessage,
-  fetchLatestBaileysVersion,
-  isJidGroup,
-  isJidBroadcast,
-  getContentType
-} = require('@whiskeysockets/baileys')
 const { Boom } = require('@hapi/boom')
 const pino = require('pino')
 const { app, ipcMain } = require('electron')
@@ -16,6 +6,22 @@ const fs = require('fs')
 
 const logger = pino({ level: 'warn' })
 
+// Baileys è ESM-only: viene caricato una sola volta con import() dinamico
+let _baileysPromise = null
+function loadBaileys() {
+  if (!_baileysPromise) _baileysPromise = import('@whiskeysockets/baileys')
+  return _baileysPromise
+}
+
+// Utilità inline (evitano la dipendenza ESM nei metodi sincroni)
+function isJidGroup(jid) { return typeof jid === 'string' && jid.endsWith('@g.us') }
+function isJidBroadcast(jid) { return typeof jid === 'string' && jid.endsWith('@broadcast') }
+function getContentType(message) {
+  if (!message) return null
+  const skip = new Set(['messageContextInfo', 'messageStubType', 'messageStubParameters', 'key', 'status'])
+  return Object.keys(message).find(k => !skip.has(k)) || null
+}
+
 class WhatsAppManager {
   constructor(db, mainWindow) {
     this.db = db
@@ -23,6 +29,8 @@ class WhatsAppManager {
     this.sockets = new Map()      // accountId → WASocket
     this.initializing = new Map() // accountId → Promise<boolean>
     this.syncing = new Set()
+    // Avvia il caricamento di baileys subito in background
+    loadBaileys().catch(err => console.error('[WA] Impossibile caricare baileys:', err))
     this.initHandlers()
     this.autoInitializeAccounts()
   }
@@ -45,7 +53,6 @@ class WhatsAppManager {
     if (waId === 'status@broadcast') return true
     if (waId === '0@c.us' || waId === '0@s.whatsapp.net') return true
     if (waId.endsWith('@broadcast')) return true
-    try { if (isJidBroadcast(waId)) return true } catch {}
     return false
   }
 
@@ -113,7 +120,6 @@ class WhatsAppManager {
       console.log(`[WA] Elimino account orfano id=${acc.id}`)
       this.db.prepare('DELETE FROM accounts WHERE id = ?').run(acc.id)
     }
-
     const activeAccounts = this.db.prepare(
       "SELECT id FROM accounts WHERE phone_number IS NOT NULL AND phone_number != ''"
     ).all()
@@ -136,12 +142,10 @@ class WhatsAppManager {
       const jid = this.normalizeJid(contact.whatsapp_id)
       try {
         const unreadMsgs = this.db.prepare(
-          'SELECT wa_message_id, is_from_me FROM messages WHERE contact_id = ? AND is_from_me = 0 ORDER BY timestamp DESC LIMIT 20'
+          'SELECT wa_message_id FROM messages WHERE contact_id = ? AND is_from_me = 0 ORDER BY timestamp DESC LIMIT 20'
         ).all(contactId)
         if (unreadMsgs.length > 0) {
-          await sock.readMessages(unreadMsgs.map(m => ({
-            remoteJid: jid, id: m.wa_message_id, fromMe: false
-          })))
+          await sock.readMessages(unreadMsgs.map(m => ({ remoteJid: jid, id: m.wa_message_id, fromMe: false })))
         }
         this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE id = ?').run(contactId)
         this.safeSend('wa:contacts-updated', { accountId })
@@ -249,7 +253,7 @@ class WhatsAppManager {
     return true
   }
 
-  // ---------- send programmati (chiamato dallo Scheduler) ----------
+  // ---------- send programmati ----------
 
   async sendScheduledTo(msg) {
     const sock = this.sockets.get(msg.account_id)
@@ -293,6 +297,22 @@ class WhatsAppManager {
     const account = this.db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId)
     if (!account) return false
 
+    // Carica baileys (ESM) tramite import() dinamico
+    let baileys
+    try {
+      baileys = await loadBaileys()
+    } catch (err) {
+      console.error(`[WA] Impossibile caricare baileys:`, err)
+      this.safeSend('wa:error', { accountId, error: err.message })
+      return false
+    }
+    const {
+      default: makeWASocket,
+      useMultiFileAuthState,
+      DisconnectReason,
+      fetchLatestBaileysVersion,
+    } = baileys
+
     const sessDir = path.join(app.getPath('userData'), 'sessions', `account-${accountId}`)
     fs.mkdirSync(sessDir, { recursive: true })
 
@@ -332,11 +352,9 @@ class WhatsAppManager {
         this.safeSend('wa:qr', { accountId, qr })
         this.safeSend('wa:loading', { accountId, percent: 10, message: 'Scansiona il QR code' })
       }
-
       if (connection === 'connecting') {
         this.safeSend('wa:loading', { accountId, percent: 50, message: 'Connessione in corso...' })
       }
-
       if (connection === 'open') {
         console.log(`[WA] Account ${accountId} connesso`)
         const user = sock.user
@@ -346,7 +364,6 @@ class WhatsAppManager {
           .run(phoneNumber, pushname, accountId)
         this.safeSend('wa:ready', { accountId, info: { pushname, wid: { user: phoneNumber } } })
       }
-
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error instanceof Boom)
           ? lastDisconnect.error.output.statusCode
@@ -433,12 +450,10 @@ class WhatsAppManager {
         phone_number = CASE WHEN excluded.phone_number != '' THEN excluded.phone_number ELSE contacts.phone_number END,
         is_group = excluded.is_group
     `)
-
     const unreadMap = {}
     for (const chat of chats) {
       if (chat.id) unreadMap[this.normalizeJid(chat.id)] = chat.unreadCount || 0
     }
-
     for (const c of contacts) {
       if (!c.id || this.isSystemChat(c.id)) continue
       const jid = this.normalizeJid(c.id)
@@ -454,8 +469,6 @@ class WhatsAppManager {
         if (!String(err.message).includes('UNIQUE')) console.error('[WA] upsertContact:', err.message)
       }
     }
-
-    // Aggiorna foto profilo in background (best-effort)
     this.updateProfilePics(accountId, sock).catch(() => {})
   }
 
@@ -514,7 +527,6 @@ class WhatsAppManager {
     const body = this.getMsgBody(msg)
     const hasMediaFlag = this.hasMedia(msg)
 
-    // Trova o crea contatto
     let contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id=? AND whatsapp_id=?').get(accountId, chatJid)
     if (!contact) {
       try {
@@ -527,19 +539,16 @@ class WhatsAppManager {
     }
     if (!contact) return
 
-    // Nome mittente nei gruppi
     let senderName = null
     if (contact.is_group && !isFromMe) {
       const participantJid = msg.key.participant || ''
       senderName = msg.pushName || (participantJid ? participantJid.split('@')[0] : 'Sconosciuto')
     }
 
-    // Metadati media
     const mediaMeta = hasMediaFlag ? this.extractMediaMeta(msg) : {}
     const { mediaDuration, mediaSize, mediaWidth, mediaHeight, mediaThumb,
             mediaMime: extractedMime, mediaFilename: extractedFilename } = mediaMeta
 
-    // Salva raw message JSON per download futuro
     let waRawMessage = null
     if (hasMediaFlag) {
       try { waRawMessage = JSON.stringify(msg) } catch {}
@@ -613,11 +622,10 @@ class WhatsAppManager {
 
   async downloadAndSaveMedia(accountId, waMsg) {
     try {
+      const { downloadMediaMessage } = await loadBaileys()
       const sock = this.sockets.get(accountId)
       const buffer = await downloadMediaMessage(
-        waMsg,
-        'buffer',
-        {},
+        waMsg, 'buffer', {},
         { logger, reuploadRequest: sock ? sock.updateMediaMessage.bind(sock) : undefined }
       )
       if (!buffer || buffer.length === 0) return null
