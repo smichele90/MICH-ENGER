@@ -313,25 +313,37 @@ class WhatsAppManager {
       fetchLatestBaileysVersion,
     } = baileys
 
+    console.log(`[WA] _doInitialize start: account ${accountId}`)
+
     const sessDir = path.join(app.getPath('userData'), 'sessions', `account-${accountId}`)
     fs.mkdirSync(sessDir, { recursive: true })
 
     let state, saveCreds
     try {
+      console.log(`[WA] useMultiFileAuthState per account ${accountId}...`)
       ;({ state, saveCreds } = await useMultiFileAuthState(sessDir))
+      console.log(`[WA] Session state caricato per account ${accountId}`)
     } catch (err) {
       console.error(`[WA] useMultiFileAuthState failed ${accountId}:`, err)
       this.safeSend('wa:error', { accountId, error: err.message })
       return false
     }
 
-    let version
+    // fetchLatestBaileysVersion fa una richiesta HTTP — timeout di 5s per evitare blocchi
+    let version = [2, 3000, 1015901307]
     try {
-      ;({ version } = await fetchLatestBaileysVersion())
-    } catch {
-      version = [2, 3000, 1015901307]
+      console.log(`[WA] fetchLatestBaileysVersion per account ${accountId}...`)
+      const result = await Promise.race([
+        fetchLatestBaileysVersion(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+      ])
+      version = result.version
+      console.log(`[WA] Versione WA: ${version}`)
+    } catch (err) {
+      console.warn(`[WA] fetchLatestBaileysVersion fallito (${err.message}), uso versione fallback`)
     }
 
+    console.log(`[WA] makeWASocket per account ${accountId}...`)
     const sock = makeWASocket({
       version,
       auth: state,
@@ -344,6 +356,7 @@ class WhatsAppManager {
 
     this.sockets.set(accountId, sock)
     sock.ev.on('creds.update', saveCreds)
+    console.log(`[WA] Socket creato per account ${accountId}, in attesa di connection.update...`)
 
     // ---------- connection.update ----------
     sock.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
