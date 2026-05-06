@@ -131,7 +131,11 @@ class WhatsAppManager {
   // ---------- IPC ----------
 
   initHandlers() {
-    ipcMain.handle('wa:initialize', async (_, accountId) => this.initializeClient(accountId))
+    console.log('[WA] Registrazione IPC handlers...')
+    ipcMain.handle('wa:initialize', async (_, accountId) => {
+      console.log(`[WA] IPC wa:initialize ricevuto, accountId=${accountId} (tipo: ${typeof accountId})`)
+      return this.initializeClient(accountId)
+    })
     ipcMain.handle('wa:destroy', async (_, accountId) => this.destroyClient(accountId))
 
     ipcMain.handle('wa:markAsRead', async (_, accountId, contactId) => {
@@ -286,6 +290,7 @@ class WhatsAppManager {
   // ---------- init client (idempotente) ----------
 
   async initializeClient(accountId) {
+    console.log(`[WA] initializeClient: id=${accountId}, haSocket=${this.sockets.has(accountId)}, isInit=${this.initializing.has(accountId)}`)
     if (this.sockets.has(accountId)) return true
     if (this.initializing.has(accountId)) return this.initializing.get(accountId)
     const promise = this._doInitialize(accountId).finally(() => this.initializing.delete(accountId))
@@ -294,8 +299,12 @@ class WhatsAppManager {
   }
 
   async _doInitialize(accountId) {
+    console.log(`[WA] _doInitialize chiamata per account ${accountId}`)
     const account = this.db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId)
-    if (!account) return false
+    if (!account) {
+      console.log(`[WA] Account ${accountId} non trovato in DB!`)
+      return false
+    }
 
     // Carica baileys (ESM) tramite import() dinamico
     let baileys
