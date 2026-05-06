@@ -55,6 +55,15 @@ class WhatsAppManager {
   }
 
   async autoInitializeAccounts() {
+    // Elimina account orfani (creati durante tentativi di pairing falliti/interrotti)
+    const orphans = this.db.prepare(
+      "SELECT id FROM accounts WHERE phone_number IS NULL OR phone_number = ''"
+    ).all()
+    for (const acc of orphans) {
+      console.log(`[WA] Elimino account orfano id=${acc.id}`)
+      this.db.prepare('DELETE FROM accounts WHERE id = ?').run(acc.id)
+    }
+
     const activeAccounts = this.db.prepare(
       "SELECT id FROM accounts WHERE phone_number IS NOT NULL AND phone_number != ''"
     ).all()
@@ -285,6 +294,10 @@ class WhatsAppManager {
           '--disable-dev-shm-usage',
           '--disable-extensions',
           '--no-first-run',
+          '--disable-gpu',
+          '--disable-gpu-sandbox',
+          '--disable-software-rasterizer',
+          '--disable-background-networking',
           '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ],
         handleSIGINT: false,
