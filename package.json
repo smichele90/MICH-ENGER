@@ -10,11 +10,12 @@
     "package": "electron-builder"
   },
   "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "better-sqlite3": "^11.7.0",
-    "whatsapp-web.js": "^1.26.0",
-    "qrcode": "^1.5.4",
+    "lucide-react": "^0.468.0",
     "node-schedule": "^2.1.1",
-    "lucide-react": "^0.468.0"
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@electron/rebuild": "^3.7.1",

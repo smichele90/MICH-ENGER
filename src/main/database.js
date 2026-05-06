@@ -27,6 +27,7 @@ function initDatabase() {
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_width INTEGER').run() } catch (e) {}
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_height INTEGER').run() } catch (e) {}
   try { db.prepare('CREATE INDEX IF NOT EXISTS idx_messages_serialized ON messages(wa_serialized_id)').run() } catch (e) {}
+  try { db.prepare('ALTER TABLE messages ADD COLUMN wa_raw_message TEXT').run() } catch (e) {}
 
   return db
 }
