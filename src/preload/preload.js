@@ -67,7 +67,7 @@ contextBridge.exposeInMainWorld('api', {
   unassignLabel: (taskId, labelId) => ipcRenderer.invoke('taskLabels:unassign', taskId, labelId),
 
   // WhatsApp
-  initializeWhatsApp: (accountId) => ipcRenderer.invoke('wa:initialize', accountId),
+  initializeWhatsApp: (accountId) => ipcRenderer.send('wa:initialize', accountId),
   destroyWhatsApp: (accountId) => ipcRenderer.invoke('wa:destroy', accountId),
   markAsRead: (accountId, contactId) => ipcRenderer.invoke('wa:markAsRead', accountId, contactId),
   markAllAsRead: (accountId) => ipcRenderer.invoke('wa:markAllAsRead', accountId),

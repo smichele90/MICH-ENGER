@@ -132,9 +132,10 @@ class WhatsAppManager {
 
   initHandlers() {
     console.log('[WA] Registrazione IPC handlers...')
-    ipcMain.handle('wa:initialize', async (_, accountId) => {
-      console.log(`[WA] IPC wa:initialize ricevuto, accountId=${accountId} (tipo: ${typeof accountId})`)
-      return this.initializeClient(accountId)
+    ipcMain.on('wa:initialize', (_, accountId) => {
+      console.log(`[WA] IPC wa:initialize ricevuto, accountId=${accountId}`)
+      this.initializeClient(accountId).catch(err =>
+        this.safeSend('wa:error', { accountId, error: err.message }))
     })
     ipcMain.handle('wa:destroy', async (_, accountId) => this.destroyClient(accountId))
 
