@@ -454,9 +454,17 @@ class WhatsAppManager {
       for (const chat of chats) {
         if (!chat.id || this.isSystemChat(chat.id)) continue
         const jid = this.normalizeJid(chat.id)
-        this.db.prepare('UPDATE contacts SET unread_count=? WHERE account_id=? AND whatsapp_id=?')
-          .run(chat.unreadCount || 0, accountId, jid)
+        const ts = chat.conversationTimestamp
+          ? new Date(Number(chat.conversationTimestamp) * 1000).toISOString()
+          : null
+        this.db.prepare(`
+          UPDATE contacts
+          SET unread_count = ?,
+              last_message_at = CASE WHEN ? IS NOT NULL AND (last_message_at IS NULL OR last_message_at < ?) THEN ? ELSE last_message_at END
+          WHERE account_id = ? AND whatsapp_id = ?
+        `).run(chat.unreadCount || 0, ts, ts, ts, accountId, jid)
       }
+      this.safeSend('wa:contacts-updated', { accountId })
     })
 
     return true // ritorna subito — QR e ready arrivano via eventi
@@ -475,8 +483,14 @@ class WhatsAppManager {
         is_group = excluded.is_group
     `)
     const unreadMap = {}
+    const timestampMap = {}
     for (const chat of chats) {
-      if (chat.id) unreadMap[this.normalizeJid(chat.id)] = chat.unreadCount || 0
+      if (chat.id) {
+        const jid = this.normalizeJid(chat.id)
+        unreadMap[jid] = chat.unreadCount || 0
+        if (chat.conversationTimestamp)
+          timestampMap[jid] = new Date(Number(chat.conversationTimestamp) * 1000).toISOString()
+      }
     }
     for (const c of contacts) {
       if (!c.id || this.isSystemChat(c.id)) continue
@@ -488,6 +502,10 @@ class WhatsAppManager {
         if (unreadMap[jid] !== undefined) {
           this.db.prepare('UPDATE contacts SET unread_count=? WHERE account_id=? AND whatsapp_id=?')
             .run(unreadMap[jid], accountId, jid)
+        }
+        if (timestampMap[jid]) {
+          this.db.prepare('UPDATE contacts SET last_message_at=? WHERE account_id=? AND whatsapp_id=? AND (last_message_at IS NULL OR last_message_at < ?)')
+            .run(timestampMap[jid], accountId, jid, timestampMap[jid])
         }
       } catch (err) {
         if (!String(err.message).includes('UNIQUE')) console.error('[WA] upsertContact:', err.message)
