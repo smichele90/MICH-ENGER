@@ -32,7 +32,12 @@ export default function QRCodeModal({ onClose, onConnected }) {
         if (cancelled) return
         tempAccountIdRef.current = result.id
         console.log('[QRModal] Account creato, id:', result.id)
-        window.api.initializeWhatsApp(result.id) // fire-and-forget: risultato via eventi wa:qr/wa:ready/wa:error
+        window.api.initializeWhatsApp(result.id).catch(err => {
+          if (!cancelled) {
+            setError('Errore inizializzazione WhatsApp: ' + err.message)
+            setStatus('error')
+          }
+        })
       } catch (err) {
         if (!cancelled) {
           setError('Errore durante l\'inizializzazione: ' + err.message)
