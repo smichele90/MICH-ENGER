@@ -308,7 +308,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
             style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           />
           <div>
-            <div className="main-header__name">{contact.name || contact.push_name || contact.phone_number}</div>
+            <div className="main-header__name">{contact.name || contact.push_name || contact.phone_number || contact.whatsapp_id?.split('@')[0]}</div>
             <div className="main-header__status">
               {contact.is_group ? 'Gruppo' : contact.phone_number || 'Contatto'}
             </div>

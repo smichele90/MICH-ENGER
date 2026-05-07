@@ -505,11 +505,11 @@ class WhatsAppManager {
           await this.handleIncomingMessage(accountId, msg, { incrementUnread: true, downloadMedia: false })
         }
       } else if (type === 'append') {
-        // Messaggi storici (Baileys 7.x): salva contenuto + aggiorna last_message_at
+        // Messaggi storici (Baileys 7.x): salva contenuto senza notificare il renderer
         for (const msg of messages) {
           const jid = this.normalizeJid(msg.key?.remoteJid)
           if (!jid || this.isSystemChat(jid)) continue
-          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false, notifyRenderer: false })
         }
         this.safeSend('wa:contacts-updated', { accountId })
       }
@@ -538,15 +538,16 @@ class WhatsAppManager {
           for (const { items } of chatsSorted) {
             const toSave = items.sort((a, b) => b.ts - a.ts).slice(0, 20)
             for (const { msg } of toSave) {
-              await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+              await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false, notifyRenderer: false })
             }
           }
         }
+        // Notifica sempre il renderer dopo ogni batch (inclusi gli eventi isLatest=false con contatti)
+        this.safeSend('wa:contacts-updated', { accountId })
         if (isLatest) {
           this.historySynced.add(accountId)
           this.updateProfilePics(accountId, sock).catch(() => {})
           this.safeSend('wa:history-synced', { accountId })
-          this.safeSend('wa:contacts-updated', { accountId })
           this.safeSend('wa:contacts-synced', { accountId })
         }
       } catch (err) {
@@ -702,6 +703,7 @@ class WhatsAppManager {
   async handleIncomingMessage(accountId, msg, opts = {}) {
     const incrementUnread = opts.incrementUnread !== false
     const downloadMedia = opts.downloadMedia === true
+    const notifyRenderer = opts.notifyRenderer !== false
 
     if (!msg?.key?.id) return
     const remoteJid = msg.key.remoteJid
@@ -785,30 +787,32 @@ class WhatsAppManager {
       WHERE id = ?
     `).run(timestamp, isFromMe, incrementUnread ? 1 : 0, contact.id)
 
-    this.safeSend('wa:message', {
-      accountId,
-      message: {
-        id: result.lastInsertRowid,
-        account_id: accountId,
-        contact_id: contact.id,
-        wa_message_id: msgId,
-        wa_serialized_id: msgId,
-        body,
-        is_from_me: isFromMe,
-        timestamp,
-        media_type: hasMediaFlag ? mediaType : 'text',
-        media_path: mediaPath,
-        media_mime: mediaMime,
-        media_filename: mediaFilename,
-        media_thumb: mediaThumb || null,
-        media_duration: mediaDuration || null,
-        media_size: mediaSize || null,
-        media_width: mediaWidth || null,
-        media_height: mediaHeight || null,
-        sender_name: senderName,
-        status: 'received'
-      }
-    })
+    if (notifyRenderer) {
+      this.safeSend('wa:message', {
+        accountId,
+        message: {
+          id: result.lastInsertRowid,
+          account_id: accountId,
+          contact_id: contact.id,
+          wa_message_id: msgId,
+          wa_serialized_id: msgId,
+          body,
+          is_from_me: isFromMe,
+          timestamp,
+          media_type: hasMediaFlag ? mediaType : 'text',
+          media_path: mediaPath,
+          media_mime: mediaMime,
+          media_filename: mediaFilename,
+          media_thumb: mediaThumb || null,
+          media_duration: mediaDuration || null,
+          media_size: mediaSize || null,
+          media_width: mediaWidth || null,
+          media_height: mediaHeight || null,
+          sender_name: senderName,
+          status: 'received'
+        }
+      })
+    }
   }
 
   // ---------- download media ----------

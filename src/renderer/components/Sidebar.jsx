@@ -406,7 +406,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                   <div style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
                       <span className="sidebar-item__label" style={{ fontWeight: item.unread_count > 0 ? 700 : 500, fontSize: 15 }}>
-                        {item.name || item.push_name || item.phone_number}
+                        {item.name || item.push_name || item.phone_number || item.whatsapp_id?.split('@')[0]}
                       </span>
                       <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 6 }}>
                         {formatLastTime(item.last_message_at)}
