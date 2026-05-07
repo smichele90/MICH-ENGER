@@ -29,8 +29,9 @@ class WhatsAppManager {
     this.sockets = new Map()        // accountId → WASocket
     this.initializing = new Map()   // accountId → Promise<boolean>
     this.syncing = new Set()
-    this.historySynced = new Set()  // accountId → sync iniziale completato
-    this.fallbackTimers = new Map() // accountId → Timer fallback post-connect
+    this.historySynced = new Set()     // accountId → sync iniziale completato
+    this.fallbackTimers = new Map()    // accountId → Timer fallback post-connect
+    this.lastDisconnectCode = new Map() // accountId → ultimo statusCode disconnect
     // Avvia il caricamento di baileys subito in background
     loadBaileys().catch(err => console.error('[WA] Impossibile caricare baileys:', err))
     this.initHandlers()
@@ -365,12 +366,17 @@ class WhatsAppManager {
       return false
     }
 
-    // Se esiste creds.json ma registered=false, la sessione è parziale/corrotta:
-    // Baileys si connette senza QR ma WhatsApp non riconosce il device.
-    // Reset → nuovo QR pulito.
+    // Se esiste creds.json ma registered=false e l'ultimo disconnect NON era 515
+    // (restartRequired), la sessione è parziale/corrotta: Baileys si connette senza QR
+    // ma WhatsApp non riconosce il device. Reset → nuovo QR pulito.
+    // Escludiamo 515 perché è il normale "restart required" del flusso QR scan —
+    // Baileys scrive i noise keys PRIMA che l'utente scansioni, quindi creds.json
+    // esiste ma registered=false è atteso; non va cancellato.
     const credsFile = path.join(sessDir, 'creds.json')
-    if (!state.creds.registered && fs.existsSync(credsFile)) {
-      console.log(`[WA] Sessione parziale rilevata (registered=false) per account ${accountId}, reset per nuovo QR...`)
+    const lastCode = this.lastDisconnectCode.get(accountId)
+    const wasRestartRequired = lastCode === 515
+    if (!state.creds.registered && fs.existsSync(credsFile) && !wasRestartRequired) {
+      console.log(`[WA] Sessione parziale rilevata (registered=false, lastCode=${lastCode}) per account ${accountId}, reset per nuovo QR...`)
       try { fs.rmSync(sessDir, { recursive: true, force: true }) } catch {}
       fs.mkdirSync(sessDir, { recursive: true })
       try {
@@ -459,6 +465,7 @@ class WhatsAppManager {
         const isLoggedOut = statusCode === DisconnectReason.loggedOut
 
         console.log(`[WA] Account ${accountId} disconnesso, statusCode=${statusCode}`)
+        this.lastDisconnectCode.set(accountId, statusCode)
         this.db.prepare('UPDATE accounts SET is_active=0 WHERE id=?').run(accountId)
         this.sockets.delete(accountId)
         this.syncing.delete(accountId)
