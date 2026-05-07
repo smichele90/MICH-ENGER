@@ -4,7 +4,7 @@ const { app, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
-const logger = pino({ level: 'info' })
+const logger = pino({ level: 'warn' })
 
 // Baileys è ESM-only: viene caricato una sola volta con import() dinamico
 let _baileysPromise = null
@@ -381,7 +381,7 @@ class WhatsAppManager {
       version,
       auth: state,
       logger,
-      syncFullHistory: false,
+      syncFullHistory: true,
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
       browser: Browsers.ubuntu('Desktop'),
