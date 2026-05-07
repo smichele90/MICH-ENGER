@@ -32,6 +32,23 @@ function initDatabase() {
   try {
     db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_wa_id ON messages(account_id, wa_message_id) WHERE wa_message_id IS NOT NULL').run()
   } catch (e) {}
+  try { db.prepare('ALTER TABLE messages ADD COLUMN ack INTEGER DEFAULT 0').run() } catch (e) {}
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS message_reactions (
+        id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+        message_db_id         INTEGER NOT NULL,
+        wa_message_serialized TEXT NOT NULL,
+        emoji                 TEXT NOT NULL,
+        sender_wa_id          TEXT NOT NULL,
+        sender_name           TEXT DEFAULT '',
+        reacted_at            TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (message_db_id) REFERENCES messages(id) ON DELETE CASCADE,
+        UNIQUE(wa_message_serialized, sender_wa_id)
+      )
+    `)
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_reactions_msg ON message_reactions(message_db_id)').run()
+  } catch (e) {}
 
   return db
 }
@@ -253,4 +270,36 @@ function dedupeContacts() {
   return { merged }
 }
 
-module.exports = { initDatabase, getDatabase, dedupeContacts, cleanSystemContacts }
+function updateMessageAck(waSerializedId, ack) {
+  if (!db) return
+  db.prepare('UPDATE messages SET ack = ? WHERE wa_serialized_id = ?').run(ack, waSerializedId)
+}
+
+function upsertReaction(waSerializedId, emoji, senderWaId, senderName, reactedAt, messageDbId) {
+  if (!db) return
+  db.prepare(`
+    INSERT INTO message_reactions (message_db_id, wa_message_serialized, emoji, sender_wa_id, sender_name, reacted_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(wa_message_serialized, sender_wa_id) DO UPDATE SET
+      emoji = excluded.emoji, reacted_at = excluded.reacted_at
+  `).run(messageDbId, waSerializedId, emoji, senderWaId, senderName || '', reactedAt || new Date().toISOString())
+}
+
+function deleteReaction(waSerializedId, senderWaId) {
+  if (!db) return
+  db.prepare('DELETE FROM message_reactions WHERE wa_message_serialized = ? AND sender_wa_id = ?')
+    .run(waSerializedId, senderWaId)
+}
+
+function getReactionsByContact(contactId) {
+  if (!db) return []
+  return db.prepare(`
+    SELECT r.*, m.wa_serialized_id
+    FROM message_reactions r
+    JOIN messages m ON m.id = r.message_db_id
+    WHERE m.contact_id = ?
+    ORDER BY r.reacted_at ASC
+  `).all(contactId)
+}
+
+module.exports = { initDatabase, getDatabase, dedupeContacts, cleanSystemContacts, updateMessageAck, upsertReaction, deleteReaction, getReactionsByContact }

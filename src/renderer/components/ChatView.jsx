@@ -1,10 +1,51 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users } from 'lucide-react'
+import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, Share2 } from 'lucide-react'
 import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import MediaPreview from './MediaPreview'
 import MessageBody from './MessageBody'
 import AvatarImage from './AvatarImage'
+import ForwardModal from './ForwardModal'
+
+const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
+
+function AckIndicator({ ack }) {
+  if (ack == null || ack === 0) return <span className="ack ack--pending" title="In attesa">🕐</span>
+  if (ack === 1) return <span className="ack ack--sent" title="Inviato">✓</span>
+  if (ack === 2) return <span className="ack ack--delivered" title="Consegnato">✓✓</span>
+  return <span className="ack ack--read" title="Letto">✓✓</span>
+}
+
+function ReactionsBar({ reactions }) {
+  if (!reactions || reactions.length === 0) return null
+  const counts = {}
+  for (const r of reactions) counts[r.emoji] = (counts[r.emoji] || 0) + 1
+  return (
+    <div className="reactions-bar">
+      {Object.entries(counts).map(([emoji, count]) => (
+        <span key={emoji} className="reactions-bar__chip">
+          {emoji}{count > 1 && <span className="reactions-bar__count">{count}</span>}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function ReactionPicker({ onReact, onClose }) {
+  const ref = useRef(null)
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [onClose])
+  return (
+    <div ref={ref} className="reaction-picker">
+      {QUICK_EMOJIS.map(e => (
+        <button key={e} className="reaction-picker__btn" onClick={() => onReact(e)}>{e}</button>
+      ))}
+    </div>
+  )
+}
 
 export default function ChatView({ contact, accountId, highlightMessageId, onHighlightDone }) {
   const [messages, setMessages] = useState([])
@@ -17,6 +58,9 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const [selectedFile, setSelectedFile] = useState(null)
   const [recording, setRecording] = useState(false)
   const [recordingStatus, setRecordingStatus] = useState('')
+  const [reactionsMap, setReactionsMap] = useState(new Map())
+  const [showReactionPicker, setShowReactionPicker] = useState(null)
+  const [showForwardModal, setShowForwardModal] = useState(null)
   const mediaRecorderRef = useRef(null)
   const mediaStreamRef = useRef(null)
   const recordingCanceledRef = useRef(false)
@@ -48,9 +92,21 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       const msgs = await window.api.getMessages(contact.id, 100, 0)
       setMessages(msgs.reverse())
       setLoading(false)
-      
+
       // Segna come letto all'apertura
       window.api.markAsRead(accountId, contact.id).catch(() => {})
+
+      // Carica reazioni per questa chat
+      try {
+        const rawReactions = await window.api.getReactions(contact.id)
+        const rMap = new Map()
+        for (const r of rawReactions) {
+          const list = rMap.get(r.wa_serialized_id) || []
+          list.push(r)
+          rMap.set(r.wa_serialized_id, list)
+        }
+        setReactionsMap(rMap)
+      } catch {}
     }
     load()
 
@@ -67,9 +123,27 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       if (msgAccountId === accountId) load()
     })
 
+    const removeAckListener = window.api.onWhatsAppEvent('wa:message-ack', ({ accountId: aId, waSerializedId, ack }) => {
+      if (aId !== accountId) return
+      setMessages(prev => prev.map(m => m.wa_serialized_id === waSerializedId ? { ...m, ack } : m))
+    })
+
+    const removeReactionListener = window.api.onWhatsAppEvent('wa:reaction', ({ accountId: aId, waSerializedId, emoji, senderWaId, senderName, removed }) => {
+      if (aId !== accountId) return
+      setReactionsMap(prev => {
+        const next = new Map(prev)
+        const list = (next.get(waSerializedId) || []).filter(r => r.sender_wa_id !== senderWaId)
+        if (!removed && emoji) list.push({ wa_serialized_id: waSerializedId, emoji, sender_wa_id: senderWaId, sender_name: senderName })
+        next.set(waSerializedId, list)
+        return next
+      })
+    })
+
     return () => {
       removeMsgListener?.()
       removeHistoryListener?.()
+      removeAckListener?.()
+      removeReactionListener?.()
     }
   }, [contact?.id, accountId])
 
@@ -100,6 +174,16 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
     if (ta) {
       ta.style.height = 'auto'
       ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
+    }
+  }
+
+  const handleReact = async (msg, emoji) => {
+    setShowReactionPicker(null)
+    if (!msg.wa_serialized_id) return
+    try {
+      await window.api.reactToMessage(accountId, msg.wa_serialized_id, emoji)
+    } catch (err) {
+      console.error('[ChatView] reactToMessage error:', err)
     }
   }
 
@@ -370,11 +454,37 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
                     >
                       <CheckSquare size={14} />
                     </button>
+                    {msg.wa_serialized_id && (
+                      <button
+                        className="message__action-btn"
+                        title="Reagisci"
+                        onClick={() => setShowReactionPicker(prev => prev === msg.wa_serialized_id ? null : msg.wa_serialized_id)}
+                      >
+                        😊
+                      </button>
+                    )}
+                    {msg.wa_serialized_id && (
+                      <button
+                        className="message__action-btn"
+                        title="Inoltra"
+                        onClick={() => setShowForwardModal({ waSerializedId: msg.wa_serialized_id })}
+                      >
+                        <Share2 size={14} />
+                      </button>
+                    )}
                   </div>
+                  {showReactionPicker === msg.wa_serialized_id && (
+                    <ReactionPicker
+                      onReact={(emoji) => handleReact(msg, emoji)}
+                      onClose={() => setShowReactionPicker(null)}
+                    />
+                  )}
                 </div>
+                <ReactionsBar reactions={reactionsMap.get(msg.wa_serialized_id) || []} />
                 <div className="message__time">
                   {msg.sender_name && <span style={{ marginRight: 6, fontWeight: 600, color: 'var(--accent)' }}>{msg.sender_name}</span>}
                   {formatTime(msg.timestamp)}
+                  {msg.is_from_me === 1 && <AckIndicator ack={msg.ack} />}
                 </div>
               </div>
             </React.Fragment>
@@ -450,6 +560,14 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
           anchorRect={taskPopover.rect}
           onClose={() => setTaskPopover(null)}
           onCreated={() => setTaskPopover(null)}
+        />
+      )}
+
+      {showForwardModal && (
+        <ForwardModal
+          waSerializedId={showForwardModal.waSerializedId}
+          accountId={accountId}
+          onClose={() => setShowForwardModal(null)}
         />
       )}
 

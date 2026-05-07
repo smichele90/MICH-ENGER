@@ -2,6 +2,7 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js')
 const { app, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
+const { updateMessageAck, upsertReaction, deleteReaction } = require('./database')
 
 /**
  * WhatsAppManager riprogettato per essere robusto come WhatsApp Web:
@@ -337,6 +338,37 @@ class WhatsAppManager {
       if (msg.fromMe) await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: true })
     })
 
+    client.on('message_ack', (msg, ack) => {
+      const serializedId = msg.id?._serialized
+      if (!serializedId) return
+      try {
+        updateMessageAck(serializedId, ack)
+        this.safeSend('wa:message-ack', { accountId, waSerializedId: serializedId, ack })
+      } catch (err) { console.error('[WA] message_ack error:', err.message) }
+    })
+
+    client.on('message_reaction', async (reaction) => {
+      try {
+        const waSerializedId = reaction.msgId?._serialized
+        const senderWaId = this.toIdString(reaction.senderId)
+        if (!waSerializedId || !senderWaId) return
+        const isRemoval = !reaction.reaction || reaction.reaction === ''
+        const msgRow = this.db.prepare('SELECT id FROM messages WHERE wa_serialized_id = ?').get(waSerializedId)
+        if (!msgRow) return
+        let senderName = senderWaId.split('@')[0]
+        try {
+          const c = await client.getContactById(senderWaId)
+          senderName = c?.pushname || c?.name || senderName
+        } catch {}
+        if (isRemoval) {
+          deleteReaction(waSerializedId, senderWaId)
+        } else {
+          upsertReaction(waSerializedId, reaction.reaction, senderWaId, senderName, new Date().toISOString(), msgRow.id)
+        }
+        this.safeSend('wa:reaction', { accountId, waSerializedId, emoji: reaction.reaction, senderWaId, senderName, removed: isRemoval })
+      } catch (err) { console.error('[WA] message_reaction error:', err.message) }
+    })
+
     client.on('disconnected', (reason) => {
       console.log(`[WA] Account ${accountId} disconnesso:`, reason)
       this.db.prepare('UPDATE accounts SET is_active = 0 WHERE id = ?').run(accountId)
@@ -592,15 +624,16 @@ class WhatsAppManager {
     let result
     try {
       result = this.db.prepare(`
-        INSERT INTO messages (account_id, contact_id, wa_message_id, wa_serialized_id, body, media_type, media_path, media_mime, media_filename, media_thumb, media_duration, media_size, media_width, media_height, is_from_me, timestamp, status, sender_name)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (account_id, contact_id, wa_message_id, wa_serialized_id, body, media_type, media_path, media_mime, media_filename, media_thumb, media_duration, media_size, media_width, media_height, is_from_me, timestamp, status, sender_name, ack)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         accountId, contact.id, msg.id.id, msg.id._serialized || null,
         msg.body || '',
         msg.hasMedia ? msg.type : 'text',
         mediaPath, mediaMime, mediaFilename,
         mediaThumb, mediaDuration, mediaSize, mediaWidth, mediaHeight,
-        msg.fromMe ? 1 : 0, timestamp, 'received', senderName
+        msg.fromMe ? 1 : 0, timestamp, 'received', senderName,
+        msg.ack != null ? msg.ack : 0
       )
     } catch (err) {
       // Race su UNIQUE: ignora silenziosamente
@@ -636,7 +669,8 @@ class WhatsAppManager {
         media_width: mediaWidth,
         media_height: mediaHeight,
         sender_name: senderName,
-        status: 'received'
+        status: 'received',
+        ack: msg.ack != null ? msg.ack : 0
       }
     })
 

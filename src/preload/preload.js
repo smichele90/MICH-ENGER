@@ -75,10 +75,13 @@ contextBridge.exposeInMainWorld('api', {
   syncChatHistory: (accountId, contactId) => ipcRenderer.invoke('wa:syncChatHistory', accountId, contactId),
   sendMessage: (accountId, contactId, body, options) => ipcRenderer.invoke('wa:sendMessage', accountId, contactId, body, options),
   downloadMedia: (accountId, messageDbId) => ipcRenderer.invoke('wa:downloadMedia', accountId, messageDbId),
+  getReactions: (contactId) => ipcRenderer.invoke('messages:getReactions', contactId),
+  reactToMessage: (accountId, waSerializedId, emoji) => ipcRenderer.invoke('wa:reactToMessage', accountId, waSerializedId, emoji),
+  forwardMessage: (accountId, waSerializedId, targetContactWaId) => ipcRenderer.invoke('wa:forwardMessage', accountId, waSerializedId, targetContactWaId),
 
   // Event listeners (per messaggi WhatsApp in tempo reale)
   onWhatsAppEvent: (channel, callback) => {
-    const validChannels = ['wa:qr', 'wa:ready', 'wa:message', 'wa:disconnected', 'wa:loading', 'wa:contacts-synced', 'wa:contacts-updated', 'wa:history-synced', 'wa:error', 'wa:sync-progress']
+    const validChannels = ['wa:qr', 'wa:ready', 'wa:message', 'wa:disconnected', 'wa:loading', 'wa:contacts-synced', 'wa:contacts-updated', 'wa:history-synced', 'wa:error', 'wa:sync-progress', 'wa:message-ack', 'wa:reaction']
     if (validChannels.includes(channel)) {
       const listener = (_, ...args) => callback(...args)
       ipcRenderer.on(channel, listener)

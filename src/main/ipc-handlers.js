@@ -1,7 +1,7 @@
 const { ipcMain, shell, dialog, app } = require('electron')
 const fs = require('fs')
 const path = require('path')
-const { dedupeContacts } = require('./database')
+const { dedupeContacts, getReactionsByContact } = require('./database')
 
 // Whitelist colonne aggiornabili per ogni tabella (protezione SQL injection)
 const ALLOWED_COLUMNS = {
@@ -161,6 +161,38 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   ipcMain.handle('messages:search', (_, accountId, query) => {
     return db.prepare('SELECT m.*, c.name as contact_name FROM messages m JOIN contacts c ON c.id = m.contact_id WHERE m.account_id = ? AND m.body LIKE ? ORDER BY m.timestamp DESC LIMIT 50')
       .all(accountId, `%${query}%`)
+  })
+
+  ipcMain.handle('messages:getReactions', (_, contactId) => getReactionsByContact(contactId))
+
+  ipcMain.handle('wa:reactToMessage', async (_, accountId, waSerializedId, emoji) => {
+    const client = waManager.clients.get(accountId)
+    if (!client) throw new Error('WhatsApp non connesso')
+    try {
+      const msg = await client.getMessageById(waSerializedId)
+      if (!msg) throw new Error('Messaggio non trovato')
+      await msg.react(emoji)
+      return { success: true }
+    } catch (err) {
+      console.error('[IPC] reactToMessage error:', err.message)
+      return { success: false, error: err.message }
+    }
+  })
+
+  ipcMain.handle('wa:forwardMessage', async (_, accountId, waSerializedId, targetContactWaId) => {
+    const client = waManager.clients.get(accountId)
+    if (!client) throw new Error('WhatsApp non connesso')
+    try {
+      const msg = await client.getMessageById(waSerializedId)
+      if (!msg) throw new Error('Messaggio non trovato')
+      const chat = await client.getChatById(targetContactWaId)
+      if (!chat) throw new Error('Chat non trovata')
+      await msg.forward(chat)
+      return { success: true }
+    } catch (err) {
+      console.error('[IPC] forwardMessage error:', err.message)
+      return { success: false, error: err.message }
+    }
   })
 
   // Risolvi phone_numbers a nomi (per menzioni @numero nei messaggi di gruppo)
