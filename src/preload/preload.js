@@ -78,7 +78,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Event listeners (per messaggi WhatsApp in tempo reale)
   onWhatsAppEvent: (channel, callback) => {
-    const validChannels = ['wa:qr', 'wa:ready', 'wa:message', 'wa:disconnected', 'wa:auth-failure', 'wa:loading', 'wa:contacts-synced', 'wa:contacts-updated', 'wa:history-synced', 'wa:error', 'wa:sync-progress']
+    const validChannels = ['wa:qr', 'wa:ready', 'wa:message', 'wa:disconnected', 'wa:loading', 'wa:contacts-synced', 'wa:contacts-updated', 'wa:history-synced', 'wa:error', 'wa:sync-progress']
     if (validChannels.includes(channel)) {
       const listener = (_, ...args) => callback(...args)
       ipcRenderer.on(channel, listener)

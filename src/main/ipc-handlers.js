@@ -1,6 +1,32 @@
-const { ipcMain, shell, dialog } = require('electron')
+const { ipcMain, shell, dialog, app } = require('electron')
 const fs = require('fs')
+const path = require('path')
 const { dedupeContacts } = require('./database')
+
+// Whitelist colonne aggiornabili per ogni tabella (protezione SQL injection)
+const ALLOWED_COLUMNS = {
+  accounts:  new Set(['name', 'phone_number', 'is_active']),
+  folders:   new Set(['name', 'parent_id', 'color', 'icon', 'sort_order']),
+  scheduled: new Set(['body', 'scheduled_at', 'recurrence_type', 'recurrence_rule',
+                      'is_active', 'next_send_at', 'last_sent_at', 'target_name',
+                      'media_type', 'media_path']),
+  tasks:     new Set(['title', 'description', 'status', 'priority', 'due_date',
+                      'notify', 'notify_at', 'recurrence_type', 'recurrence_rule']),
+}
+
+// Verifica che un path sia dentro le directory media/avatars dell'app
+function assertMediaPath(filePath) {
+  const resolved = path.resolve(filePath)
+  const userData = app.getPath('userData')
+  const allowed = [
+    path.resolve(path.join(userData, 'media')),
+    path.resolve(path.join(userData, 'avatars')),
+  ]
+  if (!allowed.some(base => resolved.startsWith(base + path.sep))) {
+    throw new Error('Access denied: path outside allowed directories')
+  }
+  return resolved
+}
 
 function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   // SETTINGS
@@ -31,7 +57,8 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
   ipcMain.handle('accounts:update', (_, id, data) => {
     const fields = [], values = []
-    Object.entries(data).forEach(([k, v]) => { if (k !== 'id') { fields.push(`${k} = ?`); values.push(v) } })
+    Object.entries(data).forEach(([k, v]) => { if (ALLOWED_COLUMNS.accounts.has(k)) { fields.push(`${k} = ?`); values.push(v) } })
+    if (fields.length === 0) return true
     values.push(id)
     db.prepare(`UPDATE accounts SET ${fields.join(', ')} WHERE id = ?`).run(...values)
     return true
@@ -96,7 +123,8 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
   ipcMain.handle('folders:update', (_, id, data) => {
     const fields = [], values = []
-    Object.entries(data).forEach(([k, v]) => { if (k !== 'id') { fields.push(`${k} = ?`); values.push(v) } })
+    Object.entries(data).forEach(([k, v]) => { if (ALLOWED_COLUMNS.folders.has(k)) { fields.push(`${k} = ?`); values.push(v) } })
+    if (fields.length === 0) return true
     values.push(id)
     db.prepare(`UPDATE folders SET ${fields.join(', ')} WHERE id = ?`).run(...values)
     return true
@@ -193,7 +221,8 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
   ipcMain.handle('scheduled:update', (_, id, data) => {
     const fields = [], values = []
-    Object.entries(data).forEach(([k, v]) => { if (k !== 'id') { fields.push(`${k} = ?`); values.push(v) } })
+    Object.entries(data).forEach(([k, v]) => { if (ALLOWED_COLUMNS.scheduled.has(k)) { fields.push(`${k} = ?`); values.push(v) } })
+    if (fields.length === 0) return true
     values.push(id)
     db.prepare(`UPDATE scheduled_messages SET ${fields.join(', ')} WHERE id = ?`).run(...values)
     if (scheduler) {
@@ -228,7 +257,7 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
   ipcMain.handle('tasks:update', (_, id, data) => {
     const fields = ["updated_at = datetime('now')"], values = []
-    Object.entries(data).forEach(([k, v]) => { if (k !== 'id') { fields.push(`${k} = ?`); values.push(v) } })
+    Object.entries(data).forEach(([k, v]) => { if (ALLOWED_COLUMNS.tasks.has(k)) { fields.push(`${k} = ?`); values.push(v) } })
     values.push(id)
     db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ?`).run(...values)
     return true
@@ -272,23 +301,31 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
   ipcMain.handle('file:getInfo', async (_, filePath) => {
     try {
-      const stat = fs.statSync(filePath)
+      const safe = assertMediaPath(filePath)
+      const stat = fs.statSync(safe)
       return {
         size: stat.size,
-        name: filePath.split(/[/\\]/).pop() || filePath,
-        mime: filePath.split('.').pop() ? `application/${filePath.split('.').pop()}` : 'application/octet-stream'
+        name: safe.split(/[/\\]/).pop() || safe,
+        mime: safe.split('.').pop() ? `application/${safe.split('.').pop()}` : 'application/octet-stream'
       }
     } catch (err) {
-      console.error('[IPC] file:getInfo error', err)
+      console.error('[IPC] file:getInfo error', err.message)
       return null
     }
   })
   ipcMain.handle('file:open', async (_, filePath) => {
-    return shell.openPath(filePath)
+    try {
+      const safe = assertMediaPath(filePath)
+      return shell.openPath(safe)
+    } catch (err) {
+      console.error('[IPC] file:open blocked:', err.message)
+      return err.message
+    }
   })
   ipcMain.handle('file:exists', (_, filePath) => {
     try {
-      return fs.existsSync(filePath)
+      const safe = assertMediaPath(filePath)
+      return fs.existsSync(safe)
     } catch {
       return false
     }

@@ -354,6 +354,32 @@ class WhatsAppManager {
         last_message_at = COALESCE(excluded.last_message_at, contacts.last_message_at)
     `)
 
+    // Prepared statements riusabili fuori dal loop (performance)
+    const checkDup = this.db.prepare('SELECT id FROM messages WHERE account_id = ? AND wa_message_id = ?')
+    const insertMsg = this.db.prepare(`
+      INSERT OR IGNORE INTO messages (
+        account_id, contact_id, wa_message_id, wa_serialized_id,
+        body, media_type, media_path, media_mime, media_filename,
+        media_thumb, media_duration, media_size, media_width, media_height,
+        is_from_me, timestamp, status, sender_name
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const updateTs = this.db.prepare(
+      'UPDATE contacts SET last_message_at = ? WHERE id = ? AND (last_message_at IS NULL OR last_message_at < ?)'
+    )
+    // Transazione riusabile: lock WAL per ~5ms per chat invece di ~500ms
+    const batchInsert = this.db.transaction((items) => {
+      for (const it of items) {
+        insertMsg.run(
+          it.accountId, it.contactId, it.msgId, it.serializedId,
+          it.body, it.mediaType, null, null, null,
+          it.mediaThumb, it.mediaDuration, it.mediaSize, it.mediaWidth, it.mediaHeight,
+          it.isFromMe, it.timestamp, 'received', it.senderName
+        )
+        updateTs.run(it.timestamp, it.contactId, it.timestamp)
+      }
+    })
+
     let processed = 0
     for (const chat of chats) {
       const waId = this.toIdString(chat.id)
@@ -362,10 +388,57 @@ class WhatsAppManager {
         const lastTs = chat.lastMessage ? new Date(chat.lastMessage.timestamp * 1000).toISOString() : null
         upsertChat.run(accountId, waId, chat.name || '', '', chat.isGroup ? 1 : 0, chat.unreadCount || 0, lastTs)
 
+        const contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id = ? AND whatsapp_id = ?').get(accountId, waId)
+        if (!contact) continue
+
         const messages = await chat.fetchMessages({ limit: 50 })
+
+        // Fase 1: risolvi dati async per ogni messaggio (senderName, media meta)
+        const toInsert = []
         for (const msg of messages) {
-          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+          if (!msg?.id?.id) continue
+          if (checkDup.get(accountId, msg.id.id)) continue
+
+          let senderName = null
+          if (contact.is_group && !msg.fromMe) {
+            const rawAuthor = msg.author || msg.id?.participant || msg._data?.author || msg._data?.participant
+            const authorId = this.toIdString(rawAuthor)
+            if (authorId) {
+              try {
+                const sc = await client.getContactById(authorId)
+                senderName = sc?.pushname || sc?.name || sc?.number || authorId.split('@')[0]
+              } catch { senderName = authorId.split('@')[0] }
+            } else { senderName = 'Sconosciuto' }
+          }
+
+          const data = msg._data || {}
+          const mt = (msg.type || '').toLowerCase()
+          let mediaThumb = null
+          if (mt === 'image' || mt === 'video' || mt === 'sticker') {
+            const candidate = typeof data.body === 'string' && data.body.length > 100 && data.body.length < 80_000 ? data.body : null
+            if (candidate && (candidate.startsWith('/9j/') || candidate.startsWith('iVBORw0'))) {
+              mediaThumb = `data:image/${candidate.startsWith('/9j/') ? 'jpeg' : 'png'};base64,${candidate}`
+            }
+          }
+
+          toInsert.push({
+            accountId, contactId: contact.id,
+            msgId: msg.id.id, serializedId: msg.id._serialized || null,
+            body: msg.body || '',
+            mediaType: msg.hasMedia ? msg.type : 'text',
+            mediaThumb,
+            mediaDuration: typeof data.duration === 'number' ? Math.round(data.duration) : null,
+            mediaSize: data.size || data.fileSize || null,
+            mediaWidth: data.width || null, mediaHeight: data.height || null,
+            isFromMe: msg.fromMe ? 1 : 0,
+            timestamp: new Date(msg.timestamp * 1000).toISOString(),
+            senderName,
+          })
         }
+
+        // Fase 2: inserimento atomico (un solo lock WAL per chat)
+        if (toInsert.length > 0) batchInsert(toInsert)
+
       } catch (err) {
         console.error(`[WA] chat ${waId} error:`, err.message)
       }

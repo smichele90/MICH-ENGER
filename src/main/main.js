@@ -74,7 +74,7 @@ ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized())
 
 // Registra il protocollo come privilegiato per evitare blocchi di sicurezza nel renderer
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'media', privileges: { bypassCSP: true, supportFetchAPI: true, secure: true, standard: true } }
+  { scheme: 'media', privileges: { supportFetchAPI: true, secure: true, standard: true } }
 ])
 
 app.whenReady().then(() => {
@@ -82,9 +82,16 @@ app.whenReady().then(() => {
   protocol.registerFileProtocol('media', (request, callback) => {
     let url = request.url.replace('media://', '')
     url = decodeURIComponent(url)
-    // Se il percorso non è assoluto (es. inizia con slash ma senza drive), aggiungilo? 
-    // In realtà usiamo percorsi assoluti dal main.
-    callback({ path: path.normalize(url) })
+    const resolved = path.resolve(url)
+    const userData = app.getPath('userData')
+    const allowed = [
+      path.resolve(path.join(userData, 'media')),
+      path.resolve(path.join(userData, 'avatars')),
+    ]
+    if (!allowed.some(base => resolved.startsWith(base + path.sep) || resolved === base)) {
+      return callback({ error: -10 }) // net::ERR_ACCESS_DENIED
+    }
+    callback({ path: resolved })
   })
 
   // Inizializza database
