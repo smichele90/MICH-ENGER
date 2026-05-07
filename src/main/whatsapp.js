@@ -26,9 +26,11 @@ class WhatsAppManager {
   constructor(db, mainWindow) {
     this.db = db
     this.mainWindow = mainWindow
-    this.sockets = new Map()      // accountId → WASocket
-    this.initializing = new Map() // accountId → Promise<boolean>
+    this.sockets = new Map()        // accountId → WASocket
+    this.initializing = new Map()   // accountId → Promise<boolean>
     this.syncing = new Set()
+    this.historySynced = new Set()  // accountId → sync iniziale completato
+    this.fallbackTimers = new Map() // accountId → Timer fallback post-connect
     // Avvia il caricamento di baileys subito in background
     loadBaileys().catch(err => console.error('[WA] Impossibile caricare baileys:', err))
     this.initHandlers()
@@ -382,7 +384,7 @@ class WhatsAppManager {
       version,
       auth: state,
       logger,
-      syncFullHistory: true,
+      syncFullHistory: false,
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
       browser: Browsers.ubuntu('Desktop'),
@@ -419,18 +421,35 @@ class WhatsAppManager {
         this.db.prepare('UPDATE accounts SET phone_number=?, name=?, is_active=1 WHERE id=?')
           .run(phoneNumber, pushname, accountId)
         this.safeSend('wa:ready', { accountId, info: { pushname, wid: { user: phoneNumber } } })
+        // Fallback: se i sync events non sparano entro 5s, aggiorna comunque la sidebar
+        this.historySynced.delete(accountId)
+        if (this.fallbackTimers.has(accountId)) clearTimeout(this.fallbackTimers.get(accountId))
+        this.fallbackTimers.set(accountId, setTimeout(() => {
+          this.fallbackTimers.delete(accountId)
+          if (!this.historySynced.has(accountId) && this.sockets.has(accountId)) {
+            console.log(`[WA] Fallback sync trigger per account ${accountId} (nessun evento history ricevuto)`)
+            this.safeSend('wa:history-synced', { accountId })
+            this.safeSend('wa:contacts-updated', { accountId })
+          }
+        }, 5000))
       }
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error instanceof Boom)
           ? lastDisconnect.error.output.statusCode
           : null
+        // Solo loggedOut (401) causa la cancellazione della sessione; forbidden (403) potrebbe
+        // essere transitorio (es. AwaitingInitialSync timeout) e non deve cancellare i creds
         const isLoggedOut = statusCode === DisconnectReason.loggedOut
-          || statusCode === DisconnectReason.forbidden
 
         console.log(`[WA] Account ${accountId} disconnesso, statusCode=${statusCode}`)
         this.db.prepare('UPDATE accounts SET is_active=0 WHERE id=?').run(accountId)
         this.sockets.delete(accountId)
         this.syncing.delete(accountId)
+        this.historySynced.delete(accountId)
+        if (this.fallbackTimers.has(accountId)) {
+          clearTimeout(this.fallbackTimers.get(accountId))
+          this.fallbackTimers.delete(accountId)
+        }
 
         if (isLoggedOut) {
           try { fs.rmSync(sessDir, { recursive: true, force: true }) } catch {}
@@ -480,6 +499,7 @@ class WhatsAppManager {
           }
         }
         if (isLatest) {
+          this.historySynced.add(accountId)
           this.updateProfilePics(accountId, sock).catch(() => {})
           this.safeSend('wa:history-synced', { accountId })
           this.safeSend('wa:contacts-updated', { accountId })
@@ -495,6 +515,7 @@ class WhatsAppManager {
       console.log(`[WA] contacts.set account ${accountId}: ${contacts.length} contatti, isLatest=${isLatest}`)
       this.upsertBaileysContacts(accountId, contacts)
       if (isLatest) {
+        this.historySynced.add(accountId)
         this.updateProfilePics(accountId, sock).catch(() => {})
         this.safeSend('wa:history-synced', { accountId })
         this.safeSend('wa:contacts-synced', { accountId })
