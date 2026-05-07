@@ -495,18 +495,36 @@ body {
 }
 .message__time { font-size: 11px; color: var(--text-muted); margin-top: 2px; padding: 0 4px; }
 .message--me .message__time { text-align: right; }
+
+/* Riga bolla + azioni affiancate */
+.message__bubble-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Messaggi inviati: bolla a destra, azioni a sinistra (verso il centro) */
+.message--me .message__bubble-row { flex-direction: row-reverse; }
+/* Messaggi ricevuti: bolla a sinistra, azioni a destra (verso il centro) */
+.message--other .message__bubble-row { flex-direction: row; }
+
 .message__actions {
-  position: absolute; top: 4px; right: 4px; opacity: 0; transition: var(--transition);
-  display: flex; gap: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  opacity: 0;
+  transition: var(--transition);
+  position: relative;
 }
-.message__bubble:hover .message__actions { opacity: 1; }
+.message:hover .message__actions { opacity: 1; }
+
 .message__action-btn {
-  width: 24px; height: 24px; border-radius: var(--radius-sm);
-  background: rgba(0,0,0,0.2); border: none; color: white;
+  width: 26px; height: 26px; border-radius: var(--radius-sm);
+  background: var(--bg-card); border: 1px solid var(--border);
+  color: var(--text-secondary);
   cursor: pointer; display: flex; align-items: center; justify-content: center;
-  font-size: 12px; transition: var(--transition);
+  font-size: 13px; transition: var(--transition);
 }
-.message__action-btn:hover { background: rgba(0,0,0,0.4); }
+.message__action-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 /* Ack ticks (spunte lettura) */
 .ack { display: inline-block; margin-left: 4px; font-size: 12px; vertical-align: middle; }
@@ -524,15 +542,18 @@ body {
 .reactions-bar__chip:hover { background: var(--bg-hover); }
 .reactions-bar__count { font-size: 11px; color: var(--text-secondary); font-weight: 600; }
 
-/* Reaction picker */
+/* Reaction picker — appare sopra il gruppo di azioni */
 .reaction-picker {
-  position: absolute; bottom: calc(100% + 6px); right: 0;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex; gap: 4px;
   background: var(--bg-modal); border: 1px solid var(--border);
   border-radius: var(--radius-full); padding: 6px 10px;
   box-shadow: var(--shadow); z-index: 100; animation: fadeIn 0.15s ease;
+  white-space: nowrap;
 }
-.message--other .reaction-picker { right: auto; left: 0; }
 .reaction-picker__btn {
   background: none; border: none; font-size: 20px;
   cursor: pointer; padding: 2px; border-radius: var(--radius-sm);

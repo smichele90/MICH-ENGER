@@ -426,23 +426,25 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
                 </div>
               )}
               <div id={`msg-${msg.id}`} className={`message ${msg.is_from_me ? 'message--me' : 'message--other'}`}>
-                <div className="message__bubble">
-                  {msg.media_type && msg.media_type !== 'text' && (
-                    <MediaPreview
-                      msg={msg}
-                      downloading={downloadingMedia.has(msg.id)}
-                      onDownload={handleDownloadMedia}
-                      onPreviewImage={setPreviewImage}
-                      onOpenFile={(p) => window.api.openFile(p)}
-                    />
-                  )}
-                  {msg.body && (
-                    <MessageBody
-                      body={msg.body}
-                      accountId={accountId}
-                      isGroup={contact.is_group}
-                    />
-                  )}
+                <div className="message__bubble-row">
+                  <div className="message__bubble">
+                    {msg.media_type && msg.media_type !== 'text' && (
+                      <MediaPreview
+                        msg={msg}
+                        downloading={downloadingMedia.has(msg.id)}
+                        onDownload={handleDownloadMedia}
+                        onPreviewImage={setPreviewImage}
+                        onOpenFile={(p) => window.api.openFile(p)}
+                      />
+                    )}
+                    {msg.body && (
+                      <MessageBody
+                        body={msg.body}
+                        accountId={accountId}
+                        isGroup={contact.is_group}
+                      />
+                    )}
+                  </div>
                   <div className="message__actions">
                     <button
                       className="message__action-btn"
@@ -472,13 +474,13 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
                         <Share2 size={14} />
                       </button>
                     )}
+                    {showReactionPicker === msg.wa_serialized_id && (
+                      <ReactionPicker
+                        onReact={(emoji) => handleReact(msg, emoji)}
+                        onClose={() => setShowReactionPicker(null)}
+                      />
+                    )}
                   </div>
-                  {showReactionPicker === msg.wa_serialized_id && (
-                    <ReactionPicker
-                      onReact={(emoji) => handleReact(msg, emoji)}
-                      onClose={() => setShowReactionPicker(null)}
-                    />
-                  )}
                 </div>
                 <ReactionsBar reactions={reactionsMap.get(msg.wa_serialized_id) || []} />
                 <div className="message__time">
