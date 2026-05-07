@@ -7,7 +7,8 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "package": "electron-builder"
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "package": "npm run build && electron-builder"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
@@ -29,12 +30,28 @@
   "build": {
     "appId": "com.michenger.app",
     "productName": "MICH-ENGER",
+    "files": [
+      "out/**"
+    ],
+    "extraMetadata": {
+      "main": "out/main/index.js"
+    },
     "directories": {
       "output": "dist"
     },
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.png"
+      "icon": "assets/icona.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icona.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
   }
 }
