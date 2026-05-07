@@ -215,6 +215,27 @@ class WhatsAppManager {
         }
         const sent = await sock.sendMessage(jid, content)
         await this.handleIncomingMessage(accountId, sent, { incrementUnread: false, downloadMedia: false })
+
+        // Salva il path originale del media inviato per mostrarlo subito senza ri-scaricare
+        if (options.mediaPath || options.mediaData) {
+          const storedMsg = this.db.prepare(
+            'SELECT id FROM messages WHERE account_id=? AND wa_message_id=?'
+          ).get(accountId, sent.key.id)
+          if (storedMsg) {
+            let savedPath = options.mediaPath || null
+            if (!savedPath && options.mediaData) {
+              const mediaDir = path.join(app.getPath('userData'), 'media', accountId.toString())
+              fs.mkdirSync(mediaDir, { recursive: true })
+              const ext = (options.mediaMime || 'audio/webm').split('/')[1]?.split(';')[0] || 'webm'
+              savedPath = path.join(mediaDir, `sent-${sent.key.id}.${ext}`)
+              fs.writeFileSync(savedPath, Buffer.from(options.mediaData, 'base64'))
+            }
+            if (savedPath) {
+              this.db.prepare('UPDATE messages SET media_path=? WHERE id=?').run(savedPath, storedMsg.id)
+            }
+          }
+        }
+
         return { id: sent.key.id, timestamp: Number(sent.messageTimestamp) }
       } catch (err) {
         console.error('[WA] sendMessage error:', err)
@@ -434,13 +455,15 @@ class WhatsAppManager {
         for (const msg of messages) {
           await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         }
-      } finally {
         if (isLatest) {
-          this.syncing.delete(accountId)
           this.safeSend('wa:history-synced', { accountId })
           this.safeSend('wa:contacts-updated', { accountId })
           this.safeSend('wa:contacts-synced', { accountId })
         }
+      } catch (err) {
+        console.error(`[WA] messaging-history.set error account ${accountId}:`, err)
+      } finally {
+        if (isLatest) this.syncing.delete(accountId)
       }
     })
 

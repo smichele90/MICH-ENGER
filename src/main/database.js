@@ -10,6 +10,7 @@ function initDatabase() {
 
   // Abilita WAL mode per performance
   db.pragma('journal_mode = WAL')
+  db.pragma('busy_timeout = 5000')
   db.pragma('foreign_keys = ON')
 
   createTables()
@@ -28,6 +29,9 @@ function initDatabase() {
   try { db.prepare('ALTER TABLE messages ADD COLUMN media_height INTEGER').run() } catch (e) {}
   try { db.prepare('CREATE INDEX IF NOT EXISTS idx_messages_serialized ON messages(wa_serialized_id)').run() } catch (e) {}
   try { db.prepare('ALTER TABLE messages ADD COLUMN wa_raw_message TEXT').run() } catch (e) {}
+  try {
+    db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_wa_id ON messages(account_id, wa_message_id) WHERE wa_message_id IS NOT NULL').run()
+  } catch (e) {}
 
   return db
 }
@@ -202,6 +206,7 @@ function cleanSystemContacts() {
     DELETE FROM contacts
     WHERE whatsapp_id = 'status@broadcast'
        OR whatsapp_id = '0@c.us'
+       OR whatsapp_id = '0@s.whatsapp.net'
        OR whatsapp_id LIKE '%@broadcast'
   `).run()
   return { removed: result.changes }
