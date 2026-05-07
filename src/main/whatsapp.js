@@ -639,6 +639,21 @@ class WhatsAppManager {
         status: 'received'
       }
     })
+
+    // Fetch avatar se il contatto non ce l'ha ancora (fire-and-forget)
+    const hasAvatar = this.db.prepare('SELECT profile_pic_url FROM contacts WHERE id = ?').get(contact.id)
+    if (!hasAvatar?.profile_pic_url) {
+      const client = this.clients.get(accountId)
+      if (client) {
+        client.getContactById(chatWaId).then(async waContact => {
+          const url = await waContact?.getProfilePicUrl()
+          if (url) {
+            this.db.prepare('UPDATE contacts SET profile_pic_url = ? WHERE id = ?').run(url, contact.id)
+            this.safeSend('wa:contacts-updated', { accountId })
+          }
+        }).catch(() => {})
+      }
+    }
   }
 
   // Verifica che un Buffer sia un'immagine vera (JPEG/PNG/WEBP/GIF magic bytes)
