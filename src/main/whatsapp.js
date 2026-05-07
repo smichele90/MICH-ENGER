@@ -407,7 +407,7 @@ class WhatsAppManager {
       version,
       auth: state,
       logger,
-      syncFullHistory: false,
+      syncFullHistory: true,
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
       browser: Browsers.ubuntu('Desktop'),
@@ -454,7 +454,7 @@ class WhatsAppManager {
             this.safeSend('wa:history-synced', { accountId })
             this.safeSend('wa:contacts-updated', { accountId })
           }
-        }, 5000))
+        }, 20000))
       }
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error instanceof Boom)
@@ -491,11 +491,38 @@ class WhatsAppManager {
       }
     })
 
-    // ---------- messaggi in tempo reale ----------
+    // ---------- messaggi in tempo reale + storici ----------
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return
-      for (const msg of messages) {
-        await this.handleIncomingMessage(accountId, msg, { incrementUnread: true, downloadMedia: false })
+      if (type === 'notify') {
+        for (const msg of messages) {
+          await this.handleIncomingMessage(accountId, msg, { incrementUnread: true, downloadMedia: false })
+        }
+      } else if (type === 'append') {
+        // Messaggi storici (Baileys 7.x): aggiorna solo last_message_at per sidebar
+        const latestByJid = new Map()
+        for (const msg of messages) {
+          const jid = this.normalizeJid(msg.key?.remoteJid)
+          if (!jid || this.isSystemChat(jid)) continue
+          const ts = Number(msg.messageTimestamp || 0)
+          if (!ts) continue
+          const prev = latestByJid.get(jid)
+          if (!prev || ts > prev) latestByJid.set(jid, ts)
+        }
+        if (latestByJid.size === 0) return
+        const insertIgnore = this.db.prepare(
+          `INSERT OR IGNORE INTO contacts (account_id, whatsapp_id, name, is_group, phone_number) VALUES (?, ?, '', ?, ?)`
+        )
+        const updateTs = this.db.prepare(
+          'UPDATE contacts SET last_message_at=? WHERE account_id=? AND whatsapp_id=? AND (last_message_at IS NULL OR last_message_at < ?)'
+        )
+        for (const [jid, ts] of latestByJid) {
+          const tsStr = new Date(ts * 1000).toISOString()
+          const isGroup = isJidGroup(jid) ? 1 : 0
+          const phone = isGroup ? '' : jid.split('@')[0]
+          insertIgnore.run(accountId, jid, isGroup, phone)
+          updateTs.run(tsStr, accountId, jid, tsStr)
+        }
+        this.safeSend('wa:contacts-updated', { accountId })
       }
     })
 
