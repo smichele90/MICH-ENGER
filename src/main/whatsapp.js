@@ -30,8 +30,9 @@ class WhatsAppManager {
     this.initializing = new Map()   // accountId → Promise<boolean>
     this.syncing = new Set()
     this.historySynced = new Set()     // accountId → sync iniziale completato
-    this.fallbackTimers = new Map()    // accountId → Timer fallback post-connect
-    this.lastDisconnectCode = new Map() // accountId → ultimo statusCode disconnect
+    this.fallbackTimers = new Map()      // accountId → Timer fallback post-connect
+    this.lastDisconnectCode = new Map()  // accountId → ultimo statusCode disconnect
+    this.reconnectAttempts = new Map()   // accountId → numero tentativi reconnect
     // Avvia il caricamento di baileys subito in background
     loadBaileys().catch(err => console.error('[WA] Impossibile caricare baileys:', err))
     this.initHandlers()
@@ -282,6 +283,7 @@ class WhatsAppManager {
     this.syncing.delete(accountId)
     this.historySynced.delete(accountId)
     this.lastDisconnectCode.delete(accountId)
+    this.reconnectAttempts.delete(accountId)
     if (this.fallbackTimers.has(accountId)) {
       clearTimeout(this.fallbackTimers.get(accountId))
       this.fallbackTimers.delete(accountId)
@@ -413,10 +415,10 @@ class WhatsAppManager {
       version,
       auth: state,
       logger,
-      syncFullHistory: true,
+      syncFullHistory: false,
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
-      browser: Browsers.ubuntu('Desktop'),
+      browser: Browsers.windows('Desktop'),
       getMessage: async (key) => {
         const stored = this.db.prepare(
           'SELECT wa_raw_message FROM messages WHERE account_id=? AND wa_message_id=?'
@@ -424,7 +426,7 @@ class WhatsAppManager {
         if (stored?.wa_raw_message) {
           try { return JSON.parse(stored.wa_raw_message) } catch {}
         }
-        return { conversation: '' }
+        return undefined  // dice al server WA "non ho questo msg, richiedilo al mittente"
       },
     })
 
@@ -445,6 +447,7 @@ class WhatsAppManager {
       if (connection === 'open') {
         console.log(`[WA] Account ${accountId} connesso`)
         this.lastDisconnectCode.delete(accountId)
+        this.reconnectAttempts.delete(accountId)
         const user = sock.user
         const phoneNumber = user.id.split(':')[0]
         const pushname = user.name || ''
@@ -484,10 +487,15 @@ class WhatsAppManager {
 
         if (isLoggedOut) {
           try { fs.rmSync(sessDir, { recursive: true, force: true }) } catch {}
+          this.reconnectAttempts.delete(accountId)
           this.safeSend('wa:disconnected', { accountId, reason: 'logged_out' })
         } else {
           this.safeSend('wa:disconnected', { accountId, reason: 'connection_closed' })
-          const delay = statusCode === DisconnectReason.restartRequired ? 3000 : 5000
+          const attempts = (this.reconnectAttempts.get(accountId) || 0) + 1
+          this.reconnectAttempts.set(accountId, attempts)
+          const baseDelay = statusCode === DisconnectReason.restartRequired ? 3000 : 8000
+          const delay = Math.min(baseDelay * Math.pow(1.5, attempts - 1), 60000)
+          console.log(`[WA] Reconnect account ${accountId} in ${Math.round(delay / 1000)}s (tentativo ${attempts})`)
           setTimeout(() => {
             if (!this.sockets.has(accountId)) {
               this.initializeClient(accountId).catch(err =>
