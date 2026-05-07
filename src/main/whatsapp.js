@@ -13,7 +13,8 @@ class WhatsAppManager {
     this.mainWindow = mainWindow
     this.clients = new Map()        // accountId -> Client
     this.initializing = new Map()   // accountId -> Promise<boolean>
-    this.syncing = new Set()         // accountId attualmente in sync
+    this.syncing = new Set()        // accountId attualmente in sync
+    this.lastSyncAt = new Map()     // accountId -> timestamp ultimo sync completato
     this.initHandlers()
     this.autoInitializeAccounts()
   }
@@ -83,6 +84,7 @@ class WhatsAppManager {
         if (!client) throw new Error('WhatsApp non connesso')
         this.db.prepare('DELETE FROM messages WHERE account_id = ?').run(accountId)
         this.db.prepare('UPDATE contacts SET last_message_at = NULL, unread_count = 0 WHERE account_id = ?').run(accountId)
+        this.lastSyncAt.delete(accountId)
         await this.runSync(accountId, client)
         return { success: true }
       } catch (err) {
@@ -195,6 +197,7 @@ class WhatsAppManager {
       this.clients.delete(accountId)
     }
     this.syncing.delete(accountId)
+    this.lastSyncAt.delete(accountId)
     return true
   }
 
@@ -250,10 +253,6 @@ class WhatsAppManager {
         clientId: `account-${accountId}`,
         dataPath: path.join(app.getPath('userData'), 'sessions')
       }),
-      webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
-      },
       puppeteer: {
         headless: true,
         protocolTimeout: 180_000,
@@ -326,7 +325,13 @@ class WhatsAppManager {
       console.log(`[WA] Sync già in corso per ${accountId}, skip`)
       return
     }
+    const lastSync = this.lastSyncAt.get(accountId) || 0
+    if (Date.now() - lastSync < 5 * 60 * 1000) {
+      console.log(`[WA] Sync troppo recente per ${accountId}, skip`)
+      return
+    }
     this.syncing.add(accountId)
+    this.lastSyncAt.set(accountId, Date.now())
     try {
       await this.syncRecentHistory(accountId, client)
       await this.syncContacts(accountId, client)
@@ -385,7 +390,8 @@ class WhatsAppManager {
       const waId = this.toIdString(chat.id)
       if (!waId || this.isSystemChat(waId)) continue
       try {
-        const lastTs = chat.lastMessage ? new Date(chat.lastMessage.timestamp * 1000).toISOString() : null
+        const rawTs = chat.timestamp || (chat.lastMessage?.timestamp ?? 0)
+        const lastTs = rawTs > 0 ? new Date(rawTs * 1000).toISOString() : null
         upsertChat.run(accountId, waId, chat.name || '', '', chat.isGroup ? 1 : 0, chat.unreadCount || 0, lastTs)
 
         const contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id = ? AND whatsapp_id = ?').get(accountId, waId)

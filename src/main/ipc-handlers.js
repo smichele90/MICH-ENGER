@@ -79,7 +79,7 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
       WHERE c.account_id = ? AND c.is_group = 0
         AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
         AND c.whatsapp_id NOT LIKE '%@broadcast'
-      ORDER BY last_message_at DESC, name ASC
+      ORDER BY last_message_at DESC NULLS LAST, name ASC
     `).all(accountId)
   })
   ipcMain.handle('contacts:getGroups', (_, accountId) => {
@@ -92,7 +92,7 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
       WHERE c.account_id = ? AND c.is_group = 1
         AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
         AND c.whatsapp_id NOT LIKE '%@broadcast'
-      ORDER BY last_message_at DESC, name ASC
+      ORDER BY last_message_at DESC NULLS LAST, name ASC
     `).all(accountId)
   })
   ipcMain.handle('contacts:search', (_, accountId, query) => {
