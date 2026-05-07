@@ -4,7 +4,7 @@ const { app, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
-const logger = pino({ level: 'warn' })
+const logger = pino({ level: 'info' })
 
 // Baileys è ESM-only: viene caricato una sola volta con import() dinamico
 let _baileysPromise = null
@@ -355,7 +355,7 @@ class WhatsAppManager {
     try {
       console.log(`[WA] useMultiFileAuthState per account ${accountId}...`)
       ;({ state, saveCreds } = await useMultiFileAuthState(sessDir))
-      console.log(`[WA] Session state caricato per account ${accountId}`)
+      console.log(`[WA] Session state caricato per account ${accountId}, registered=${state.creds.registered}`)
     } catch (err) {
       console.error(`[WA] useMultiFileAuthState failed ${accountId}:`, err)
       this.safeSend('wa:error', { accountId, error: err.message })
@@ -436,7 +436,7 @@ class WhatsAppManager {
           this.safeSend('wa:disconnected', { accountId, reason: 'logged_out' })
         } else {
           this.safeSend('wa:disconnected', { accountId, reason: 'connection_closed' })
-          const delay = statusCode === DisconnectReason.restartRequired ? 0 : 5000
+          const delay = statusCode === DisconnectReason.restartRequired ? 3000 : 5000
           setTimeout(() => {
             if (!this.sockets.has(accountId)) {
               this.initializeClient(accountId).catch(err =>
