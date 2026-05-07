@@ -343,6 +343,7 @@ class WhatsAppManager {
       useMultiFileAuthState,
       DisconnectReason,
       fetchLatestBaileysVersion,
+      Browsers,
     } = baileys
 
     console.log(`[WA] _doInitialize start: account ${accountId}`)
@@ -383,7 +384,7 @@ class WhatsAppManager {
       syncFullHistory: false,
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
-      browser: ['MICH-ENGER', 'Desktop', '1.0.0'],
+      browser: Browsers.ubuntu('Desktop'),
       getMessage: async (key) => {
         const stored = this.db.prepare(
           'SELECT wa_raw_message FROM messages WHERE account_id=? AND wa_message_id=?'
@@ -473,16 +474,37 @@ class WhatsAppManager {
       }
     })
 
+    // ---------- contatti/chat iniziali (bulk) ----------
+    sock.ev.on('contacts.set', ({ contacts, isLatest }) => {
+      console.log(`[WA] contacts.set account ${accountId}: ${contacts.length} contatti, isLatest=${isLatest}`)
+      this.upsertBaileysContacts(accountId, contacts)
+      if (isLatest) {
+        this.updateProfilePics(accountId, sock).catch(() => {})
+        this.safeSend('wa:history-synced', { accountId })
+        this.safeSend('wa:contacts-synced', { accountId })
+      }
+      this.safeSend('wa:contacts-updated', { accountId })
+    })
+
     // ---------- contatti/chat incrementali ----------
     sock.ev.on('contacts.upsert', (contacts) => {
+      console.log(`[WA] contacts.upsert account ${accountId}: ${contacts.length} contatti`)
       this.upsertBaileysContacts(accountId, contacts)
       this.safeSend('wa:contacts-updated', { accountId })
     })
 
     sock.ev.on('chats.upsert', (chats) => {
+      console.log(`[WA] chats.upsert account ${accountId}: ${chats.length} chat`)
+      const insertContact = this.db.prepare(`
+        INSERT OR IGNORE INTO contacts (account_id, whatsapp_id, name, is_group, phone_number)
+        VALUES (?, ?, '', ?, ?)
+      `)
       for (const chat of chats) {
         if (!chat.id || this.isSystemChat(chat.id)) continue
         const jid = this.normalizeJid(chat.id)
+        const isGroup = isJidGroup(jid) ? 1 : 0
+        const phone = isGroup ? '' : jid.split('@')[0]
+        insertContact.run(accountId, jid, isGroup, phone)
         const ts = chat.conversationTimestamp
           ? new Date(Number(chat.conversationTimestamp) * 1000).toISOString()
           : null
