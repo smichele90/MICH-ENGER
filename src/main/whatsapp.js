@@ -365,6 +365,23 @@ class WhatsAppManager {
       return false
     }
 
+    // Se esiste creds.json ma registered=false, la sessione è parziale/corrotta:
+    // Baileys si connette senza QR ma WhatsApp non riconosce il device.
+    // Reset → nuovo QR pulito.
+    const credsFile = path.join(sessDir, 'creds.json')
+    if (!state.creds.registered && fs.existsSync(credsFile)) {
+      console.log(`[WA] Sessione parziale rilevata (registered=false) per account ${accountId}, reset per nuovo QR...`)
+      try { fs.rmSync(sessDir, { recursive: true, force: true }) } catch {}
+      fs.mkdirSync(sessDir, { recursive: true })
+      try {
+        ;({ state, saveCreds } = await useMultiFileAuthState(sessDir))
+      } catch (err) {
+        console.error(`[WA] useMultiFileAuthState post-reset failed ${accountId}:`, err)
+        this.safeSend('wa:error', { accountId, error: err.message })
+        return false
+      }
+    }
+
     // fetchLatestBaileysVersion fa una richiesta HTTP — timeout di 5s per evitare blocchi
     let version = [2, 3000, 1015901307]
     try {
