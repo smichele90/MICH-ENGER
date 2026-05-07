@@ -168,6 +168,7 @@ class WhatsAppManager {
       try {
         this.db.prepare('DELETE FROM messages WHERE account_id = ?').run(accountId)
         this.db.prepare('UPDATE contacts SET last_message_at = NULL, unread_count = 0 WHERE account_id = ?').run(accountId)
+        this.safeSend('wa:contacts-updated', { accountId })
         await this.destroyClient(accountId)
         await this.initializeClient(accountId)
         return { success: true }
@@ -576,6 +577,26 @@ class WhatsAppManager {
       } catch (err) {
         if (!String(err.message).includes('UNIQUE')) console.error('[WA] upsertContact:', err.message)
       }
+    }
+    // Garantisce contatto + last_message_at per ogni chat, incluse quelle fuori rubrica
+    const insertChat = this.db.prepare(
+      `INSERT OR IGNORE INTO contacts (account_id, whatsapp_id, name, is_group, phone_number) VALUES (?, ?, '', ?, ?)`
+    )
+    const updateChatTs = this.db.prepare(
+      'UPDATE contacts SET last_message_at=? WHERE account_id=? AND whatsapp_id=? AND (last_message_at IS NULL OR last_message_at < ?)'
+    )
+    const updateChatUnread = this.db.prepare(
+      'UPDATE contacts SET unread_count=? WHERE account_id=? AND whatsapp_id=?'
+    )
+    for (const chat of chats) {
+      if (!chat.id || this.isSystemChat(chat.id)) continue
+      const jid = this.normalizeJid(chat.id)
+      const isGroup = isJidGroup(jid) ? 1 : 0
+      const phone = isGroup ? '' : jid.split('@')[0]
+      insertChat.run(accountId, jid, isGroup, phone)
+      const ts = timestampMap[jid]
+      if (ts) updateChatTs.run(ts, accountId, jid, ts)
+      if (unreadMap[jid] !== undefined) updateChatUnread.run(unreadMap[jid], accountId, jid)
     }
   }
 

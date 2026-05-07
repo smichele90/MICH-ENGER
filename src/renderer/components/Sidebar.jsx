@@ -164,7 +164,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
     const all = [...contacts, ...groups]
       .filter(c => c.last_message_at)
       .sort((a, b) => new Date(b.last_message_at) - new Date(a.last_message_at))
-    if (!debouncedSearchQuery) return all
+    if (!debouncedSearchQuery) return all.slice(0, 25)
     const q = debouncedSearchQuery.toLowerCase()
     return all.filter(c =>
       c.name?.toLowerCase().includes(q) ||
