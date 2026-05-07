@@ -460,8 +460,23 @@ class WhatsAppManager {
       console.log(`[WA] History set account ${accountId}: ${messages.length} msg, ${chats.length} chat, ${contacts.length} contatti, isLatest=${isLatest}`)
       try {
         await this.processHistoryContacts(accountId, contacts, chats)
-        for (const msg of messages) {
-          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+        // Salva solo l'ultimo messaggio per chat (preview sidebar), max 25 chat più recenti
+        if (messages.length > 0) {
+          const latestByChat = new Map()
+          for (const msg of messages) {
+            const jid = this.normalizeJid(msg.key?.remoteJid)
+            if (!jid || this.isSystemChat(jid)) continue
+            const prev = latestByChat.get(jid)
+            if (!prev || Number(msg.messageTimestamp || 0) > Number(prev.messageTimestamp || 0)) {
+              latestByChat.set(jid, msg)
+            }
+          }
+          const toSave = [...latestByChat.values()]
+            .sort((a, b) => Number(b.messageTimestamp || 0) - Number(a.messageTimestamp || 0))
+            .slice(0, 25)
+          for (const msg of toSave) {
+            await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+          }
         }
         if (isLatest) {
           this.updateProfilePics(accountId, sock).catch(() => {})
