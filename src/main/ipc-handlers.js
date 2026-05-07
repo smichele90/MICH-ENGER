@@ -53,7 +53,6 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
         AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
         AND c.whatsapp_id NOT LIKE '%@broadcast'
       ORDER BY last_message_at DESC, name ASC
-      LIMIT 25
     `).all(accountId)
   })
   ipcMain.handle('contacts:getGroups', (_, accountId) => {
@@ -67,7 +66,6 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
         AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
         AND c.whatsapp_id NOT LIKE '%@broadcast'
       ORDER BY last_message_at DESC, name ASC
-      LIMIT 25
     `).all(accountId)
   })
   ipcMain.handle('contacts:search', (_, accountId, query) => {
