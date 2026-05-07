@@ -280,6 +280,12 @@ class WhatsAppManager {
       this.sockets.delete(accountId)
     }
     this.syncing.delete(accountId)
+    this.historySynced.delete(accountId)
+    this.lastDisconnectCode.delete(accountId)
+    if (this.fallbackTimers.has(accountId)) {
+      clearTimeout(this.fallbackTimers.get(accountId))
+      this.fallbackTimers.delete(accountId)
+    }
     this.db.prepare('UPDATE accounts SET is_active = 0 WHERE id = ?').run(accountId)
     return true
   }
@@ -438,6 +444,7 @@ class WhatsAppManager {
       }
       if (connection === 'open') {
         console.log(`[WA] Account ${accountId} connesso`)
+        this.lastDisconnectCode.delete(accountId)
         const user = sock.user
         const phoneNumber = user.id.split(':')[0]
         const pushname = user.name || ''
@@ -498,29 +505,11 @@ class WhatsAppManager {
           await this.handleIncomingMessage(accountId, msg, { incrementUnread: true, downloadMedia: false })
         }
       } else if (type === 'append') {
-        // Messaggi storici (Baileys 7.x): aggiorna solo last_message_at per sidebar
-        const latestByJid = new Map()
+        // Messaggi storici (Baileys 7.x): salva contenuto + aggiorna last_message_at
         for (const msg of messages) {
           const jid = this.normalizeJid(msg.key?.remoteJid)
           if (!jid || this.isSystemChat(jid)) continue
-          const ts = Number(msg.messageTimestamp || 0)
-          if (!ts) continue
-          const prev = latestByJid.get(jid)
-          if (!prev || ts > prev) latestByJid.set(jid, ts)
-        }
-        if (latestByJid.size === 0) return
-        const insertIgnore = this.db.prepare(
-          `INSERT OR IGNORE INTO contacts (account_id, whatsapp_id, name, is_group, phone_number) VALUES (?, ?, '', ?, ?)`
-        )
-        const updateTs = this.db.prepare(
-          'UPDATE contacts SET last_message_at=? WHERE account_id=? AND whatsapp_id=? AND (last_message_at IS NULL OR last_message_at < ?)'
-        )
-        for (const [jid, ts] of latestByJid) {
-          const tsStr = new Date(ts * 1000).toISOString()
-          const isGroup = isJidGroup(jid) ? 1 : 0
-          const phone = isGroup ? '' : jid.split('@')[0]
-          insertIgnore.run(accountId, jid, isGroup, phone)
-          updateTs.run(tsStr, accountId, jid, tsStr)
+          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         }
         this.safeSend('wa:contacts-updated', { accountId })
       }
@@ -531,22 +520,26 @@ class WhatsAppManager {
       console.log(`[WA] History set account ${accountId}: ${messages.length} msg, ${chats.length} chat, ${contacts.length} contatti, isLatest=${isLatest}`)
       try {
         await this.processHistoryContacts(accountId, contacts, chats)
-        // Salva solo l'ultimo messaggio per chat (preview sidebar), max 25 chat più recenti
+        // Salva ultimi 20 messaggi per le 25 chat più recenti (storia leggibile per ogni chat)
         if (messages.length > 0) {
-          const latestByChat = new Map()
+          const byChat = new Map()
           for (const msg of messages) {
             const jid = this.normalizeJid(msg.key?.remoteJid)
             if (!jid || this.isSystemChat(jid)) continue
-            const prev = latestByChat.get(jid)
-            if (!prev || Number(msg.messageTimestamp || 0) > Number(prev.messageTimestamp || 0)) {
-              latestByChat.set(jid, msg)
-            }
+            const ts = Number(msg.messageTimestamp || 0)
+            if (!ts) continue
+            if (!byChat.has(jid)) byChat.set(jid, [])
+            byChat.get(jid).push({ msg, ts })
           }
-          const toSave = [...latestByChat.values()]
-            .sort((a, b) => Number(b.messageTimestamp || 0) - Number(a.messageTimestamp || 0))
+          const chatsSorted = [...byChat.entries()]
+            .map(([jid, items]) => ({ jid, lastTs: Math.max(...items.map(i => i.ts)), items }))
+            .sort((a, b) => b.lastTs - a.lastTs)
             .slice(0, 25)
-          for (const msg of toSave) {
-            await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+          for (const { items } of chatsSorted) {
+            const toSave = items.sort((a, b) => b.ts - a.ts).slice(0, 20)
+            for (const { msg } of toSave) {
+              await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+            }
           }
         }
         if (isLatest) {

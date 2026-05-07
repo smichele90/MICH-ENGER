@@ -16,3 +16,9 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Ruflo runtime data
+.claude-flow/
+.swarm/
+ruvector.db
+*.db
