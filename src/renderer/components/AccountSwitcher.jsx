@@ -66,11 +66,11 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
         </div>
       ))}
 
-      {accounts.length > 0 && <div className="account-bar__divider" />}
-
-      <button className="account-bar__add" onClick={onAdd} title="Aggiungi account">
-        <Plus size={18} />
-      </button>
+      {accounts.length === 0 && (
+        <button className="account-bar__add" onClick={onAdd} title="Collega account WhatsApp">
+          <Plus size={18} />
+        </button>
+      )}
 
       {/* Spacer */}
       <div style={{ flex: 1 }} />

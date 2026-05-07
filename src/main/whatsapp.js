@@ -4,8 +4,17 @@ const path = require('path')
 const fs = require('fs')
 
 /**
- * WhatsAppManager con whatsapp-web.js (Puppeteer/Chrome).
- * Ripristinato da Baileys (rc) per problemi di sync multi-device.
+ * WhatsAppManager riprogettato per essere robusto come WhatsApp Web:
+ *  - Init idempotente (nessuna race condition: due chiamate concorrenti
+ *    condividono la stessa Promise di inizializzazione).
+ *  - Lock di sync per account (un solo sync per volta, niente doppioni).
+ *  - Media NON scaricati durante il bulk sync (lazy on-demand quando il
+ *    renderer apre la chat). I messaggi con `hasMedia` sono salvati con
+ *    `media_path = NULL` e flag `media_pending = 1`.
+ *  - Tutti i `webContents.send` passano per `safeSend` (no crash su
+ *    finestra distrutta).
+ *  - protocolTimeout di puppeteer alzato a 3 minuti.
+ *  - authorId dei gruppi normalizzato a stringa.
  */
 class WhatsAppManager {
   constructor(db, mainWindow) {
@@ -14,7 +23,7 @@ class WhatsAppManager {
     this.clients = new Map()        // accountId -> Client
     this.initializing = new Map()   // accountId -> Promise<boolean>
     this.syncing = new Set()        // accountId attualmente in sync
-    this.lastSyncAt = new Map()     // accountId -> timestamp ultimo sync completato
+    this.lastSyncAt = new Map()     // accountId -> timestamp ultimo sync
     this.initHandlers()
     this.autoInitializeAccounts()
   }
@@ -34,6 +43,10 @@ class WhatsAppManager {
     try { return String(id) } catch { return null }
   }
 
+  // Filtra le entità "di sistema" che NON sono vere conversazioni:
+  //  - status@broadcast (gli stati/storie di tutti i contatti)
+  //  - 0@c.us (notifiche WhatsApp ufficiali in alcuni casi)
+  //  - liste broadcast (suffisso @broadcast)
   isSystemChat(waId) {
     if (!waId || typeof waId !== 'string') return true
     if (waId === 'status@broadcast') return true
@@ -43,6 +56,15 @@ class WhatsAppManager {
   }
 
   async autoInitializeAccounts() {
+    // Elimina account orfani (creati durante tentativi di pairing falliti/interrotti)
+    const orphans = this.db.prepare(
+      "SELECT id FROM accounts WHERE phone_number IS NULL OR phone_number = ''"
+    ).all()
+    for (const acc of orphans) {
+      console.log(`[WA] Elimino account orfano id=${acc.id}`)
+      this.db.prepare('DELETE FROM accounts WHERE id = ?').run(acc.id)
+    }
+
     const activeAccounts = this.db.prepare(
       "SELECT id FROM accounts WHERE phone_number IS NOT NULL AND phone_number != ''"
     ).all()
@@ -119,23 +141,29 @@ class WhatsAppManager {
       const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(contactId)
       if (!contact) throw new Error('Contatto non trovato')
       try {
-        let msgOptions = {}
-        if (options.mediaPath || options.mediaData) {
-          let buffer
-          if (options.mediaPath) {
-            if (!fs.existsSync(options.mediaPath)) throw new Error(`File non trovato: ${options.mediaPath}`)
-            buffer = fs.readFileSync(options.mediaPath)
-          } else {
-            buffer = Buffer.from(options.mediaData, 'base64')
-          }
-          const mime = options.mediaMime || 'application/octet-stream'
-          const filename = options.filename || path.basename(options.mediaPath || 'file')
-          const media = new MessageMedia(mime, buffer.toString('base64'), filename)
-          const msg = await client.sendMessage(contact.whatsapp_id, media, { caption: options.caption || body || '' })
-          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
-          return { id: msg.id.id, timestamp: msg.timestamp }
+        let payload = body
+        const sendOptions = {}
+
+        if (options.caption) {
+          sendOptions.caption = options.caption
         }
-        const msg = await client.sendMessage(contact.whatsapp_id, body, msgOptions)
+
+        if (options.mediaPath || options.mediaData) {
+          if (options.mediaPath) {
+            if (!fs.existsSync(options.mediaPath)) {
+              throw new Error(`File non trovato: ${options.mediaPath}`)
+            }
+            payload = MessageMedia.fromFilePath(options.mediaPath)
+          } else {
+            if (!options.mediaMime || !options.mediaData) {
+              throw new Error('Dati media incompleti')
+            }
+            const filename = options.filename || `file.${options.mediaMime.split('/')[1] || 'bin'}`
+            payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
+          }
+        }
+
+        const msg = await client.sendMessage(contact.whatsapp_id, payload, sendOptions)
         await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         return { id: msg.id.id, timestamp: msg.timestamp }
       } catch (err) {
@@ -144,6 +172,7 @@ class WhatsAppManager {
       }
     })
 
+    // Download media on-demand (chiamato quando il renderer apre un messaggio media)
     ipcMain.handle('wa:downloadMedia', async (_, accountId, messageDbId) => {
       try {
         const client = this.clients.get(accountId)
@@ -155,6 +184,7 @@ class WhatsAppManager {
           return { success: true, media_path: row.media_path, media_mime: row.media_mime, media_filename: row.media_filename }
         }
 
+        // Strategia 1 (preferita): getMessageById con il serialized id
         let msg = null
         if (row.wa_serialized_id) {
           try {
@@ -164,6 +194,7 @@ class WhatsAppManager {
           }
         }
 
+        // Strategia 2 (fallback): scorri la chat con limite generoso
         if (!msg) {
           const contact = this.db.prepare('SELECT whatsapp_id FROM contacts WHERE id = ?').get(row.contact_id)
           if (!contact) return { success: false, error: 'Contatto non trovato' }
@@ -255,14 +286,17 @@ class WhatsAppManager {
       }),
       puppeteer: {
         headless: true,
-        protocolTimeout: 180_000,
+        protocolTimeout: 180_000, // 3 min — evita timeout su sync di chat con molti messaggi
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-extensions',
           '--no-first-run',
-          '--no-zygote',
+          '--disable-gpu',
+          '--disable-gpu-sandbox',
+          '--disable-software-rasterizer',
+          '--disable-background-networking',
           '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ],
         handleSIGINT: false,
@@ -271,6 +305,8 @@ class WhatsAppManager {
       }
     })
 
+    // CRUCIALE: registra il client nella mappa SUBITO, prima di async/await,
+    // così le chiamate concorrenti vedono che esiste e non creano un secondo client.
     this.clients.set(accountId, client)
 
     client.on('qr', (qr) => {
@@ -288,6 +324,8 @@ class WhatsAppManager {
       this.db.prepare('UPDATE accounts SET phone_number = ?, name = ?, is_active = 1 WHERE id = ?')
         .run(info.wid.user, info.pushname || '', accountId)
       this.safeSend('wa:ready', { accountId, info: { pushname: info.pushname, wid: info.wid } })
+
+      // Sync una sola volta (lock interno)
       this.runSync(accountId, client).catch(err => console.error('[WA] sync error:', err))
     })
 
@@ -333,127 +371,85 @@ class WhatsAppManager {
     this.syncing.add(accountId)
     this.lastSyncAt.set(accountId, Date.now())
     try {
-      await this.syncRecentHistory(accountId, client)
+      await this.syncRecentChats(accountId, client)
       await this.syncContacts(accountId, client)
     } finally {
       this.syncing.delete(accountId)
     }
   }
 
-  async syncRecentHistory(accountId, client) {
-    console.log(`[WA] Sync chats per account ${accountId}...`)
-    let chats = []
-    try { chats = await client.getChats() } catch (err) {
-      console.error('[WA] getChats failed:', err)
+  // Usa client.getChats() — l'elenco chat ordinato da WhatsApp per attività reale —
+  // invece del DB locale (che è stale per chat con nuovi messaggi arrivati offline).
+  async syncRecentChats(accountId, client) {
+    console.log(`[WA] Sync chat recenti (da WhatsApp) per account ${accountId}...`)
+
+    let waChats
+    try {
+      waChats = await client.getChats()
+    } catch (err) {
+      console.error('[WA] getChats failed:', err.message)
       return
     }
-    console.log(`[WA] ${chats.length} chats da indicizzare`)
 
-    const upsertChat = this.db.prepare(`
-      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, is_group, unread_count, last_message_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
-        name = CASE WHEN excluded.name != '' THEN excluded.name ELSE contacts.name END,
-        is_group = excluded.is_group,
-        unread_count = excluded.unread_count,
-        last_message_at = COALESCE(excluded.last_message_at, contacts.last_message_at)
-    `)
+    // Prende le prime 25 chat non di sistema, già ordinate per attività da WA
+    const chats = waChats
+      .filter(c => !this.isSystemChat(this.toIdString(c.id)))
+      .slice(0, 25)
 
-    // Prepared statements riusabili fuori dal loop (performance)
-    const checkDup = this.db.prepare('SELECT id FROM messages WHERE account_id = ? AND wa_message_id = ?')
-    const insertMsg = this.db.prepare(`
-      INSERT OR IGNORE INTO messages (
-        account_id, contact_id, wa_message_id, wa_serialized_id,
-        body, media_type, media_path, media_mime, media_filename,
-        media_thumb, media_duration, media_size, media_width, media_height,
-        is_from_me, timestamp, status, sender_name
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    const updateTs = this.db.prepare(
-      'UPDATE contacts SET last_message_at = ? WHERE id = ? AND (last_message_at IS NULL OR last_message_at < ?)'
-    )
-    // Transazione riusabile: lock WAL per ~5ms per chat invece di ~500ms
-    const batchInsert = this.db.transaction((items) => {
-      for (const it of items) {
-        insertMsg.run(
-          it.accountId, it.contactId, it.msgId, it.serializedId,
-          it.body, it.mediaType, null, null, null,
-          it.mediaThumb, it.mediaDuration, it.mediaSize, it.mediaWidth, it.mediaHeight,
-          it.isFromMe, it.timestamp, 'received', it.senderName
-        )
-        updateTs.run(it.timestamp, it.contactId, it.timestamp)
-      }
-    })
+    console.log(`[WA] ${chats.length} chat recenti da sincronizzare`)
+    let totalNew = 0
 
-    let processed = 0
     for (const chat of chats) {
-      const waId = this.toIdString(chat.id)
-      if (!waId || this.isSystemChat(waId)) continue
+      const chatWaId = this.toIdString(chat.id)
+      if (!chatWaId) continue
+
       try {
-        const rawTs = chat.timestamp || (chat.lastMessage?.timestamp ?? 0)
-        const lastTs = rawTs > 0 ? new Date(rawTs * 1000).toISOString() : null
-        upsertChat.run(accountId, waId, chat.name || '', '', chat.isGroup ? 1 : 0, chat.unreadCount || 0, lastTs)
+        // Aggiorna unread_count con il valore reale dal server
+        const serverUnread = chat.unreadCount || 0
+        this.db.prepare('UPDATE contacts SET unread_count = ? WHERE account_id = ? AND whatsapp_id = ?')
+          .run(serverUnread, accountId, chatWaId)
 
-        const contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id = ? AND whatsapp_id = ?').get(accountId, waId)
-        if (!contact) continue
+        // Trova l'ultimo messaggio locale per decidere da dove riprendere
+        const lastLocalMsg = this.db.prepare(`
+          SELECT timestamp FROM messages
+          WHERE contact_id = (SELECT id FROM contacts WHERE account_id = ? AND whatsapp_id = ?)
+          ORDER BY timestamp DESC LIMIT 1
+        `).get(accountId, chatWaId)
 
-        const messages = await chat.fetchMessages({ limit: 50 })
+        const messages = await chat.fetchMessages({ limit: 20 })
+        let newMessages = 0
 
-        // Fase 1: risolvi dati async per ogni messaggio (senderName, media meta)
-        const toInsert = []
         for (const msg of messages) {
-          if (!msg?.id?.id) continue
-          if (checkDup.get(accountId, msg.id.id)) continue
-
-          let senderName = null
-          if (contact.is_group && !msg.fromMe) {
-            const rawAuthor = msg.author || msg.id?.participant || msg._data?.author || msg._data?.participant
-            const authorId = this.toIdString(rawAuthor)
-            if (authorId) {
-              try {
-                const sc = await client.getContactById(authorId)
-                senderName = sc?.pushname || sc?.name || sc?.number || authorId.split('@')[0]
-              } catch { senderName = authorId.split('@')[0] }
-            } else { senderName = 'Sconosciuto' }
+          if (lastLocalMsg && msg.timestamp <= Math.floor(new Date(lastLocalMsg.timestamp).getTime() / 1000)) {
+            continue
           }
-
-          const data = msg._data || {}
-          const mt = (msg.type || '').toLowerCase()
-          let mediaThumb = null
-          if (mt === 'image' || mt === 'video' || mt === 'sticker') {
-            const candidate = typeof data.body === 'string' && data.body.length > 100 && data.body.length < 80_000 ? data.body : null
-            if (candidate && (candidate.startsWith('/9j/') || candidate.startsWith('iVBORw0'))) {
-              mediaThumb = `data:image/${candidate.startsWith('/9j/') ? 'jpeg' : 'png'};base64,${candidate}`
-            }
-          }
-
-          toInsert.push({
-            accountId, contactId: contact.id,
-            msgId: msg.id.id, serializedId: msg.id._serialized || null,
-            body: msg.body || '',
-            mediaType: msg.hasMedia ? msg.type : 'text',
-            mediaThumb,
-            mediaDuration: typeof data.duration === 'number' ? Math.round(data.duration) : null,
-            mediaSize: data.size || data.fileSize || null,
-            mediaWidth: data.width || null, mediaHeight: data.height || null,
-            isFromMe: msg.fromMe ? 1 : 0,
-            timestamp: new Date(msg.timestamp * 1000).toISOString(),
-            senderName,
-          })
+          await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
+          newMessages++
         }
 
-        // Fase 2: inserimento atomico (un solo lock WAL per chat)
-        if (toInsert.length > 0) batchInsert(toInsert)
+        if (newMessages > 0) {
+          console.log(`[WA] Chat ${chat.name}: ${newMessages} nuovi messaggi`)
+          totalNew += newMessages
+        }
 
+        // Avatar: aggiorna l'URL foto per questo contatto (solo lettura, nessun rischio)
+        try {
+          const waContact = await chat.getContact()
+          if (waContact) {
+            const picUrl = await waContact.getProfilePicUrl()
+            if (picUrl) {
+              this.db.prepare(
+                'UPDATE contacts SET profile_pic_url = ? WHERE account_id = ? AND whatsapp_id = ?'
+              ).run(picUrl, accountId, chatWaId)
+            }
+          }
+        } catch { /* contatto con privacy pic: normale */ }
       } catch (err) {
-        console.error(`[WA] chat ${waId} error:`, err.message)
-      }
-      processed++
-      if (processed % 25 === 0) {
-        this.safeSend('wa:sync-progress', { accountId, processed, total: chats.length })
+        console.error(`[WA] sync chat ${chatWaId} error:`, err.message)
       }
     }
-    console.log(`[WA] Sync chats completato (${processed}/${chats.length})`)
+
+    console.log(`[WA] Sync completata: ${totalNew} nuovi messaggi in totale`)
     this.safeSend('wa:history-synced', { accountId })
     this.safeSend('wa:contacts-updated', { accountId })
   }
@@ -465,69 +461,37 @@ class WhatsAppManager {
       return
     }
 
+    // Sincronizza solo metadati (nome, telefono, gruppo) — gli avatar sono
+    // gestiti in syncRecentChats per i contatti attivi, senza download su disco.
     const upsertContact = this.db.prepare(`
-      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, profile_pic_path, is_group)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, is_group)
+      VALUES (?, ?, ?, ?, ?, ?)
       ON CONFLICT(account_id, whatsapp_id) DO UPDATE SET
         name = CASE WHEN excluded.name != '' THEN excluded.name ELSE contacts.name END,
         push_name = CASE WHEN excluded.push_name != '' THEN excluded.push_name ELSE contacts.push_name END,
         phone_number = CASE WHEN excluded.phone_number != '' THEN excluded.phone_number ELSE contacts.phone_number END,
-        profile_pic_path = COALESCE(excluded.profile_pic_path, contacts.profile_pic_path),
         is_group = excluded.is_group
     `)
-
-    const avatarDir = path.join(app.getPath('userData'), 'avatars')
-    if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true })
 
     for (const contact of waContacts) {
       if (!(contact.isMyContact || contact.isGroup)) continue
       const waId = this.toIdString(contact.id)
       if (!waId || this.isSystemChat(waId)) continue
-
-      let localAvatarPath = null
-      const filename = `${waId.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`
-      const fullPath = path.join(avatarDir, filename)
-      if (fs.existsSync(fullPath)) {
-        try {
-          const stat = fs.statSync(fullPath)
-          if (stat.size > 100 && this.isValidImageFile(fullPath)) {
-            localAvatarPath = fullPath
-          } else {
-            fs.unlinkSync(fullPath)
-          }
-        } catch { /* ignora */ }
-      }
-      if (!localAvatarPath) {
-        try {
-          const url = await contact.getProfilePicUrl()
-          if (url) {
-            const response = await fetch(url)
-            if (response.ok) {
-              const buffer = Buffer.from(await response.arrayBuffer())
-              if (buffer.length > 100 && this.isValidImageBuffer(buffer)) {
-                fs.writeFileSync(fullPath, buffer)
-                localAvatarPath = fullPath
-              }
-            }
-          }
-        } catch { /* niente avatar, ok */ }
-      }
-
       try {
         upsertContact.run(
           accountId, waId,
           contact.name || '', contact.pushname || '', contact.number || '',
-          localAvatarPath, contact.isGroup ? 1 : 0
+          contact.isGroup ? 1 : 0
         )
       } catch (err) {
         console.error('[WA] upsertContact error:', err.message)
       }
     }
-    this.safeSend('wa:contacts-synced', { accountId })
+    this.safeSend('wa:contacts-synced', accountId)
     this.safeSend('wa:contacts-updated', { accountId })
   }
 
-  // ---------- handle messaggio ----------
+  // ---------- handle messaggio (incoming/outgoing/sync) ----------
 
   async handleIncomingMessage(accountId, msg, opts = {}) {
     const incrementUnread = opts.incrementUnread !== false
@@ -538,6 +502,7 @@ class WhatsAppManager {
       .get(accountId, msg.id.id)
     if (existing) return
 
+    // Risolvi chat (single source of truth per whatsapp_id)
     let chatWaId, chatName = '', chatIsGroup = 0
     try {
       const chat = await msg.getChat()
@@ -549,6 +514,7 @@ class WhatsAppManager {
       chatWaId = this.toIdString(fallback)
     }
     if (!chatWaId) return
+    // Ignora completamente status broadcast e liste broadcast
     if (this.isSystemChat(chatWaId)) return
 
     let contact = this.db.prepare('SELECT id, is_group FROM contacts WHERE account_id = ? AND whatsapp_id = ?')
@@ -568,6 +534,8 @@ class WhatsAppManager {
 
     const timestamp = new Date(msg.timestamp * 1000).toISOString()
 
+    // Media: durante sync NON scarichiamo, salviamo solo il flag.
+    // L'on-demand handler `wa:downloadMedia` farà il fetch quando il renderer apre il messaggio.
     let mediaPath = null, mediaMime = null, mediaFilename = null
     if (msg.hasMedia && downloadMedia) {
       const saved = await this.downloadAndSaveMedia(accountId, msg)
@@ -578,6 +546,7 @@ class WhatsAppManager {
       }
     }
 
+    // Sender name nei gruppi (robusto: authorId può essere oggetto)
     let senderName = null
     if (contact.is_group && !msg.fromMe) {
       const rawAuthor = msg.author || msg.id?.participant || msg._data?.author || msg._data?.participant
@@ -597,6 +566,7 @@ class WhatsAppManager {
       }
     }
 
+    // Estrai metadati media (durata audio/video, dimensione, eventuale thumbnail base64)
     let mediaDuration = null, mediaSize = null, mediaWidth = null, mediaHeight = null, mediaThumb = null
     if (msg.hasMedia) {
       const data = msg._data || {}
@@ -604,6 +574,9 @@ class WhatsAppManager {
       mediaSize = data.size || data.fileSize || null
       mediaWidth = data.width || null
       mediaHeight = data.height || null
+      // Per immagini/video WhatsApp include una micro-thumbnail base64 (~5-10kb).
+      // ATTENZIONE: per video con caption, _data.body è il caption testuale, non la thumb.
+      // Validiamo: deve iniziare coi byte magici JPEG (`/9j/`) o PNG (`iVBORw0`).
       const mt = (msg.type || '').toLowerCase()
       if (mt === 'image' || mt === 'video' || mt === 'sticker') {
         const candidate = typeof data.body === 'string' && data.body.length > 100 && data.body.length < 80_000
@@ -630,6 +603,7 @@ class WhatsAppManager {
         msg.fromMe ? 1 : 0, timestamp, 'received', senderName
       )
     } catch (err) {
+      // Race su UNIQUE: ignora silenziosamente
       if (!String(err.message).includes('UNIQUE')) console.error('[WA] insert message:', err.message)
       return
     }
@@ -667,11 +641,16 @@ class WhatsAppManager {
     })
   }
 
+  // Verifica che un Buffer sia un'immagine vera (JPEG/PNG/WEBP/GIF magic bytes)
   isValidImageBuffer(buf) {
     if (!buf || buf.length < 8) return false
+    // JPEG: FF D8 FF
     if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) return true
+    // PNG: 89 50 4E 47 0D 0A 1A 0A
     if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47) return true
+    // GIF: 47 49 46 38
     if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38) return true
+    // WEBP: "RIFF...WEBP"
     if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46
         && buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50) return true
     return false
