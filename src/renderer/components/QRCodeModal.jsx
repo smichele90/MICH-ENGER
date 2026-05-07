@@ -29,7 +29,10 @@ export default function QRCodeModal({ onClose, onConnected }) {
     const initPairing = async () => {
       try {
         const result = await window.api.createAccount({ name: 'Nuovo Account', phone_number: '' })
-        if (cancelled) return
+        if (cancelled) {
+          window.api.deleteAccount(result.id).catch(() => {})
+          return
+        }
         tempAccountIdRef.current = result.id
         console.log('[QRModal] Account creato, id:', result.id)
         window.api.initializeWhatsApp(result.id).catch(err => {
@@ -83,6 +86,7 @@ export default function QRCodeModal({ onClose, onConnected }) {
     })
 
     return () => {
+      initialized.current = false
       cancelled = true
       clearTimeout(timeoutId)
       removeQrListener?.()
