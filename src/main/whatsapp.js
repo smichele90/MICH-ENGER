@@ -384,6 +384,15 @@ class WhatsAppManager {
       markOnlineOnConnect: false,
       generateHighQualityLinkPreview: false,
       browser: ['MICH-ENGER', 'Desktop', '1.0.0'],
+      getMessage: async (key) => {
+        const stored = this.db.prepare(
+          'SELECT wa_raw_message FROM messages WHERE account_id=? AND wa_message_id=?'
+        ).get(accountId, key.id)
+        if (stored?.wa_raw_message) {
+          try { return JSON.parse(stored.wa_raw_message) } catch {}
+        }
+        return { conversation: '' }
+      },
     })
 
     this.sockets.set(accountId, sock)
@@ -447,23 +456,20 @@ class WhatsAppManager {
 
     // ---------- sync iniziale ----------
     sock.ev.on('messaging-history.set', async ({ messages, chats, contacts, isLatest }) => {
-      if (this.syncing.has(accountId)) return
-      this.syncing.add(accountId)
-      console.log(`[WA] History set account ${accountId}: ${messages.length} msg, ${chats.length} chat, ${contacts.length} contatti`)
+      console.log(`[WA] History set account ${accountId}: ${messages.length} msg, ${chats.length} chat, ${contacts.length} contatti, isLatest=${isLatest}`)
       try {
-        await this.processHistoryContacts(accountId, contacts, chats, sock)
+        await this.processHistoryContacts(accountId, contacts, chats)
         for (const msg of messages) {
           await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         }
         if (isLatest) {
+          this.updateProfilePics(accountId, sock).catch(() => {})
           this.safeSend('wa:history-synced', { accountId })
           this.safeSend('wa:contacts-updated', { accountId })
           this.safeSend('wa:contacts-synced', { accountId })
         }
       } catch (err) {
         console.error(`[WA] messaging-history.set error account ${accountId}:`, err)
-      } finally {
-        if (isLatest) this.syncing.delete(accountId)
       }
     })
 
@@ -495,7 +501,7 @@ class WhatsAppManager {
 
   // ---------- sync contatti da history ----------
 
-  async processHistoryContacts(accountId, contacts, chats, sock) {
+  async processHistoryContacts(accountId, contacts, chats) {
     const upsert = this.db.prepare(`
       INSERT INTO contacts (account_id, whatsapp_id, name, push_name, phone_number, is_group)
       VALUES (?, ?, ?, ?, ?, ?)
@@ -534,7 +540,6 @@ class WhatsAppManager {
         if (!String(err.message).includes('UNIQUE')) console.error('[WA] upsertContact:', err.message)
       }
     }
-    this.updateProfilePics(accountId, sock).catch(() => {})
   }
 
   upsertBaileysContacts(accountId, contacts) {
