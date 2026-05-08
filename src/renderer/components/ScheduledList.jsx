@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect } from 'react'
-import { Clock, Trash2, Plus, Folder, Users, User, CheckCircle2, Edit2, Pause, Play } from 'lucide-react'
+import { Clock, Trash2, Plus, Folder, Users, User, CheckCircle2, Edit2, Pause, Play, Paperclip } from 'lucide-react'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import ConfirmDialog from './ConfirmDialog'
 
@@ -91,9 +91,11 @@ export default function ScheduledList({ accountId }) {
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button className="btn--icon" title={msg.is_active ? 'Sospendi' : 'Riattiva'} onClick={() => handleToggleActive(msg)}>
-                      {msg.is_active ? <Pause size={14} strokeWidth={1.6} /> : <Play size={14} strokeWidth={1.6} />}
-                    </button>
+                    {msg.recurrence_type !== 'once' && (
+                      <button className="btn--icon" title={msg.is_active ? 'Sospendi' : 'Riattiva'} onClick={() => handleToggleActive(msg)}>
+                        {msg.is_active ? <Pause size={14} strokeWidth={1.6} /> : <Play size={14} strokeWidth={1.6} />}
+                      </button>
+                    )}
                     <button className="btn--icon" title="Modifica" onClick={() => handleEdit(msg)}>
                       <Edit2 size={14} strokeWidth={1.6} />
                     </button>
@@ -104,6 +106,13 @@ export default function ScheduledList({ accountId }) {
                 </div>
 
                 <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 100, overflow: 'hidden' }}>
+                  {msg.media_path && (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, marginBottom: msg.body ? 4 : 0 }}>
+                      <Paperclip size={12} strokeWidth={1.6} />
+                      {msg.media_path.split(/[\\/]/).pop()}
+                    </span>
+                  )}
+                  {msg.media_path && msg.body && <br />}
                   {msg.body}
                 </div>
 

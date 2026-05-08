@@ -78,11 +78,11 @@ class Scheduler {
     }
 
     if (msg.recurrence_type === 'once') {
-      this.db.prepare('UPDATE scheduled_messages SET is_active = 0 WHERE id = ?').run(id)
-      this.jobs.delete(id)
       if (ok && msg.media_path) {
         try { fs.unlinkSync(path.resolve(msg.media_path)) } catch {}
       }
+      this.db.prepare('DELETE FROM scheduled_messages WHERE id = ?').run(id)
+      this.jobs.delete(id)
     } else {
       const next = this.computeNext(msg)
       if (next) {
