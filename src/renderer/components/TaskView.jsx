@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { Plus, Calendar, ExternalLink, Trash2, Repeat, Bell } from 'lucide-react'
 import TaskCreateModal from './TaskCreateModal'
 import TaskDetailModal from './TaskDetailModal'
+import ConfirmDialog from './ConfirmDialog'
 
 const STATUS_COLS = [
   { key: 'todo',        label: 'Da fare',     color: '#6C3CE1' },
@@ -18,6 +19,7 @@ export default function TaskView({ accountId, onNavigate }) {
   const [showCreate, setShowCreate] = useState(false)
   const [editTask, setEditTask] = useState(null)
   const [dragOverCol, setDragOverCol] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   useEffect(() => {
     loadTasks()
@@ -37,10 +39,14 @@ export default function TaskView({ accountId, onNavigate }) {
     loadTasks()
   }
 
-  const handleDelete = async (taskId, e) => {
+  const handleDelete = (taskId, e) => {
     e?.stopPropagation()
-    if (!confirm('Eliminare questo task?')) return
-    await window.api.deleteTask(taskId)
+    setConfirmDeleteId(taskId)
+  }
+
+  const confirmDelete = async () => {
+    await window.api.deleteTask(confirmDeleteId)
+    setConfirmDeleteId(null)
     loadTasks()
   }
 
@@ -188,6 +194,15 @@ export default function TaskView({ accountId, onNavigate }) {
               onNavigate?.('chat', { contactId: msg.contact_id, messageId: msg.id })
             }
           }}
+        />
+      )}
+
+      {confirmDeleteId && (
+        <ConfirmDialog
+          message="Eliminare questo task?"
+          confirmLabel="Elimina"
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirmDeleteId(null)}
         />
       )}
     </>

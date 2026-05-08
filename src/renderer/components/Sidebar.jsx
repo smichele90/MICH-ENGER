@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Search, FolderPlus, CheckSquare, Clock, MessageSquare, MailCheck, RefreshCw } from 'lucide-react'
 import FolderTree from './FolderTree'
 import AvatarImage from './AvatarImage'
+import ConfirmDialog from './ConfirmDialog'
 
 function createBadgeDataURL(count) {
   const canvas = document.createElement('canvas')
@@ -59,6 +60,9 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
   const [newFolderName, setNewFolderName] = useState('')
   const [creatingFolder, setCreatingFolder] = useState(false)
   const [sidebarTab, setSidebarTab] = useState('recent') // recent, contacts, groups
+  const [confirmReload, setConfirmReload] = useState(false)
+  const [confirmMarkRead, setConfirmMarkRead] = useState(false)
+  const [reloadError, setReloadError] = useState('')
 
   // Debounce per ricerca
   const searchTimeoutRef = useRef(null)
@@ -259,6 +263,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
   }
 
   return (
+    <>
     <div className="sidebar">
       {/* Ricerca */}
       <div className="sidebar__search">
@@ -370,15 +375,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                 <button
                   className="sidebar-section__action"
                   style={{ opacity: 1 }}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (window.confirm('Vuoi ricaricare tutta la cronologia? Questo scaricherà nuovamente i media mancanti.')) {
-                      const result = await window.api.resetHistory(accountId);
-                      if (result && !result.success) {
-                        alert('Errore durante il ricaricamento: ' + result.error);
-                      }
-                    }
-                  }}
+                  onClick={e => { e.stopPropagation(); setConfirmReload(true) }}
                   title="Ricarica cronologia"
                 >
                   <RefreshCw size={14} />
@@ -386,12 +383,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                 <button
                   className="sidebar-section__action"
                   style={{ opacity: 1 }}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    if (window.confirm('Segnare tutti i messaggi come letti?')) {
-                      await window.api.markAllAsRead(accountId);
-                    }
-                  }}
+                  onClick={e => { e.stopPropagation(); setConfirmMarkRead(true) }}
                   title="Segna tutto come letto"
                 >
                   <MailCheck size={14} />
@@ -455,5 +447,47 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
         )}
       </div>
     </div>
+
+    {reloadError && (
+      <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) setReloadError('') }}>
+        <div className="modal" style={{ width: 360 }}>
+          <div className="modal__header">
+            <span className="modal__title">Errore</span>
+          </div>
+          <p style={{ marginBottom: 20, color: 'var(--text-secondary)', fontSize: 14 }}>{reloadError}</p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn btn--primary" onClick={() => setReloadError('')}>OK</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {confirmReload && (
+      <ConfirmDialog
+        message="Vuoi ricaricare tutta la cronologia? Questo scaricherà nuovamente i media mancanti."
+        confirmLabel="Ricarica"
+        danger={false}
+        onConfirm={async () => {
+          setConfirmReload(false)
+          const result = await window.api.resetHistory(accountId)
+          if (result && !result.success) setReloadError('Errore durante il ricaricamento: ' + result.error)
+        }}
+        onCancel={() => setConfirmReload(false)}
+      />
+    )}
+
+    {confirmMarkRead && (
+      <ConfirmDialog
+        message="Segnare tutti i messaggi come letti?"
+        confirmLabel="Segna letti"
+        danger={false}
+        onConfirm={async () => {
+          setConfirmMarkRead(false)
+          await window.api.markAllAsRead(accountId)
+        }}
+        onCancel={() => setConfirmMarkRead(false)}
+      />
+    )}
+    </>
   )
 }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { X, Save, Calendar, Bell, Repeat, Flag, Tag, Trash2, Plus, ExternalLink } from 'lucide-react'
+import ConfirmDialog from './ConfirmDialog'
 
 const PRIORITIES = [
   { v: 'low',    label: 'Bassa',  color: '#3b82f6' },
@@ -40,6 +41,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
   const [allLabels, setAllLabels] = useState([])
   const [showLabelPicker, setShowLabelPicker] = useState(false)
   const [newLabel, setNewLabel] = useState({ name: '', color: '#6C3CE1' })
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false)
 
   useEffect(() => {
     refreshLabels()
@@ -67,8 +69,9 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
     onClose()
   }
 
-  const handleDelete = async () => {
-    if (!confirm('Eliminare definitivamente questo task?')) return
+  const handleDelete = () => setShowConfirmDelete(true)
+
+  const confirmDelete = async () => {
     await window.api.deleteTask(task.id)
     onDeleted?.()
     onClose()
@@ -90,8 +93,9 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 600, maxHeight: '90vh', overflow: 'auto' }}>
+    <>
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal" style={{ width: 600, maxHeight: '90vh', overflow: 'auto' }}>
         <div className="modal__header">
           <span className="modal__title">Dettaglio Task</span>
           <button className="btn--icon" onClick={onClose}><X size={20} /></button>
@@ -239,6 +243,16 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
         </div>
       </div>
     </div>
+
+    {showConfirmDelete && (
+      <ConfirmDialog
+        message="Eliminare definitivamente questo task?"
+        confirmLabel="Elimina"
+        onConfirm={confirmDelete}
+        onCancel={() => setShowConfirmDelete(false)}
+      />
+    )}
+    </>
   )
 }
 

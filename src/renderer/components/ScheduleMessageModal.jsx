@@ -26,13 +26,17 @@ function SearchableSelect({ value, options, placeholder, onChange }) {
   const selected = options.find(o => String(o.id) === String(value))
 
   useEffect(() => {
-    if (!isOpen) { setSearch(''); return }
+    if (!isOpen) return
     searchRef.current?.focus()
     function handleMouseDown(e) {
       if (!containerRef.current?.contains(e.target)) setIsOpen(false)
     }
     document.addEventListener('mousedown', handleMouseDown)
     return () => document.removeEventListener('mousedown', handleMouseDown)
+  }, [isOpen])
+
+  useEffect(() => {
+    if (!isOpen) setSearch('')
   }, [isOpen])
 
   const handleSelect = (id) => {
@@ -101,6 +105,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
   const [contacts, setContacts] = useState([])
   const [folders, setFolders] = useState([])
   const [folderCounts, setFolderCounts] = useState({})
+  const [formError, setFormError] = useState('')
 
   const [form, setForm] = useState(() => ({
     target_type: editing?.target_type || (initialContact ? (initialContact.is_group ? 'group' : 'contact') : 'contact'),
@@ -155,14 +160,15 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     if (!isValid) return
     const targetIdNum = parseInt(form.target_id, 10)
     if (Number.isNaN(targetIdNum)) {
-      alert('Destinatario non valido. Riselezionalo dalla lista.')
+      setFormError('Destinatario non valido. Riselezionalo dalla lista.')
       return
     }
     const dt = new Date(form.scheduled_at)
     if (Number.isNaN(dt.getTime())) {
-      alert('Data/ora non valida.')
+      setFormError('Data/ora non valida.')
       return
     }
+    setFormError('')
     const payload = {
       account_id: accountId,
       target_type: form.target_type,
@@ -290,6 +296,12 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
                 Invio: {form.scheduled_at ? new Date(form.scheduled_at).toLocaleString('it-IT') : '—'}
                 {form.recurrence_type !== 'once' && ` · ${RECURRENCE_OPTS.find(o => o.value === form.recurrence_type)?.label}`}
               </div>
+            </div>
+          )}
+
+          {formError && (
+            <div style={{ padding: '8px 12px', background: 'rgba(239,68,68,0.1)', border: '1px solid var(--danger)', borderRadius: 8, color: 'var(--danger)', fontSize: 13 }}>
+              {formError}
             </div>
           )}
 

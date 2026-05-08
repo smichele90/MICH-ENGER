@@ -78,6 +78,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const [reactionsMap, setReactionsMap] = useState(new Map())
   const [showReactionPicker, setShowReactionPicker] = useState(null)
   const [showForwardModal, setShowForwardModal] = useState(null)
+  const [chatError, setChatError] = useState('')
   const [groupMembers, setGroupMembers] = useState([])
   const [mentionActive, setMentionActive] = useState(false)
   const [mentionSuggestions, setMentionSuggestions] = useState([])
@@ -86,6 +87,12 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const mediaStreamRef = useRef(null)
   const recordingCanceledRef = useRef(false)
   const recordingTimerRef = useRef(null)
+
+  useEffect(() => {
+    if (!chatError) return
+    const t = setTimeout(() => setChatError(''), 4000)
+    return () => clearTimeout(t)
+  }, [chatError])
 
   // Scarica media on-demand
   const handleDownloadMedia = async (msgId) => {
@@ -271,7 +278,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       }
     } catch (err) {
       console.error('Errore invio:', err)
-      alert('Errore invio messaggio: riprova tra qualche istante.')
+      setChatError('Errore invio messaggio: riprova tra qualche istante.')
     }
   }
 
@@ -329,7 +336,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       if (textareaRef.current) textareaRef.current.style.height = 'auto'
     } catch (err) {
       console.error('Errore invio media:', err)
-      alert('Errore invio allegato: riprova tra qualche istante.')
+      setChatError('Errore invio allegato: riprova tra qualche istante.')
     } finally {
       setLoading(false)
     }
@@ -358,7 +365,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       })
     } catch (err) {
       console.error('Errore selezione file:', err)
-      alert('Impossibile selezionare il file.')
+      setChatError('Impossibile selezionare il file.')
     }
   }
 
@@ -409,7 +416,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       }, 1000)
     } catch (err) {
       console.error('Errore avvio registrazione:', err)
-      alert('Impossibile avviare la registrazione audio.')
+      setChatError('Impossibile avviare la registrazione audio.')
     }
   }
 
@@ -569,6 +576,17 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
         })}
         <div ref={chatEndRef} />
       </div>
+
+      {/* Banner errore inline (no alert) */}
+      {chatError && (
+        <div style={{
+          padding: '8px 16px', background: 'rgba(239,68,68,0.12)', borderTop: '1px solid var(--danger)',
+          color: 'var(--danger)', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        }}>
+          <span>{chatError}</span>
+          <button onClick={() => setChatError('')} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>✕</button>
+        </div>
+      )}
 
       {/* Input messaggio */}
       <div className="chat-input-area">

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Clock, Trash2, Plus, Folder, Users, User, CheckCircle2, Edit2, Pause, Play } from 'lucide-react'
 import ScheduleMessageModal from './ScheduleMessageModal'
+import ConfirmDialog from './ConfirmDialog'
 
 export default function ScheduledList({ accountId }) {
   const [messages, setMessages] = useState([])
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   useEffect(() => {
     if (!accountId) return
@@ -19,9 +21,11 @@ export default function ScheduledList({ accountId }) {
     setMessages(await window.api.getScheduled(accountId))
   }
 
-  const handleDelete = async (id) => {
-    if (!confirm('Eliminare questo messaggio programmato?')) return
-    await window.api.deleteScheduled(id)
+  const handleDelete = (id) => setConfirmDeleteId(id)
+
+  const confirmDelete = async () => {
+    await window.api.deleteScheduled(confirmDeleteId)
+    setConfirmDeleteId(null)
     loadMessages()
   }
 
@@ -122,6 +126,15 @@ export default function ScheduledList({ accountId }) {
           editing={editing}
           onClose={() => { setShowModal(false); setEditing(null) }}
           onSaved={loadMessages}
+        />
+      )}
+
+      {confirmDeleteId && (
+        <ConfirmDialog
+          message="Eliminare questo messaggio programmato?"
+          confirmLabel="Elimina"
+          onConfirm={confirmDelete}
+          onCancel={() => setConfirmDeleteId(null)}
         />
       )}
     </div>

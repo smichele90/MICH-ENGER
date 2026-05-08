@@ -8,6 +8,7 @@ import ScheduledList from './components/ScheduledList'
 import QRCodeModal from './components/QRCodeModal'
 import SearchOverlay from './components/SearchOverlay'
 import FolderContactManager from './components/FolderContactManager'
+import ConfirmDialog from './components/ConfirmDialog'
 function playNotificationSound() {
   try {
     const ctx = new AudioContext()
@@ -43,6 +44,7 @@ export default function App() {
   const [managingFolder, setManagingFolder] = useState(null)
   const [sidebarRefreshKey, setSidebarRefreshKey] = useState(0)
   const [connectionStatuses, setConnectionStatuses] = useState({})
+  const [confirmAccId, setConfirmAccId] = useState(null)
   const [highlightMessageId, setHighlightMessageId] = useState(null)
   const [soundEnabled, setSoundEnabled] = useState(true)
 
@@ -166,14 +168,13 @@ export default function App() {
     setActiveContact(null)
     setActiveFolder(null)
   }
-  const handleDeleteAccount = async (id) => {
-    if (confirm('Sei sicuro di voler eliminare questo account?')) {
-      await window.api.deleteAccount(id)
-      setAccounts(prev => prev.filter(a => a.id !== id))
-      if (activeAccount?.id === id) {
-        setActiveAccount(null)
-      }
-    }
+  const handleDeleteAccount = (id) => setConfirmAccId(id)
+
+  const confirmDeleteAccount = async () => {
+    await window.api.deleteAccount(confirmAccId)
+    setAccounts(prev => prev.filter(a => a.id !== confirmAccId))
+    if (activeAccount?.id === confirmAccId) setActiveAccount(null)
+    setConfirmAccId(null)
   }
 
   // Navigation handlers
@@ -310,6 +311,15 @@ export default function App() {
             setManagingFolder(null)
             setSidebarRefreshKey(prev => prev + 1)
           }}
+        />
+      )}
+
+      {confirmAccId && (
+        <ConfirmDialog
+          message="Sei sicuro di voler eliminare questo account?"
+          confirmLabel="Elimina"
+          onConfirm={confirmDeleteAccount}
+          onCancel={() => setConfirmAccId(null)}
         />
       )}
     </>
