@@ -186,8 +186,8 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
   const targetIcon = form.target_type === 'folder' ? <Folder size={16} /> : (form.target_type === 'group' ? <Users size={16} /> : <User size={16} />)
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 560, maxHeight: '90vh', overflow: 'auto' }}>
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal" style={{ width: 560, maxHeight: '90vh', overflow: 'auto' }}>
         <div className="modal__header">
           <span className="modal__title">{editing ? 'Modifica messaggio programmato' : 'Programma messaggio'}</span>
           <button className="btn--icon" onClick={onClose}><X size={20} /></button>
