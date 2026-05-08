@@ -139,6 +139,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
   const recorderRef = useRef(null)
   const recChunksRef = useRef([])
   const recTimerRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   const [form, setForm] = useState(() => ({
     target_type: editing?.target_type || (initialContact ? (initialContact.is_group ? 'group' : 'contact') : 'contact'),
@@ -198,16 +199,18 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     return t?.name || ''
   }, [form.target_id, targetList])
 
-  const handlePickFile = async () => {
-    const filePath = await window.api.pickMediaFile()
-    if (!filePath) return
-    const name = filePath.split(/[\\/]/).pop()
+  const handlePickFile = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const filePath = file.path  // Electron espone il percorso assoluto
+    const name = file.name
     const ext = name.split('.').pop().toLowerCase()
     const imgExts = ['jpg','jpeg','png','gif','webp']
     const audioExts = ['mp3','ogg','wav','m4a','opus']
     const videoExts = ['mp4','mov','avi','mkv','webm']
     const type = imgExts.includes(ext) ? 'image' : audioExts.includes(ext) ? 'audio' : videoExts.includes(ext) ? 'video' : 'document'
     setMediaAttachment({ path: filePath, name, type })
+    e.target.value = ''  // reset per poter riselezionare lo stesso file
   }
 
   const handleStartRecording = async () => {
@@ -416,7 +419,13 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={handlePickFile}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={handlePickFile}
+                />
+                <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={() => fileInputRef.current?.click()}>
                   <Paperclip size={14} strokeWidth={1.6} /> Allega file
                 </button>
                 {!isRecording ? (

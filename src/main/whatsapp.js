@@ -281,22 +281,28 @@ class WhatsAppManager {
         targets = members.map(m => m.whatsapp_id)
       }
       for (const waId of targets) {
-        let payload = msg.body || ''
-        const sendOptions = {}
-
         if (msg.media_path && fs.existsSync(msg.media_path)) {
-          payload = MessageMedia.fromFilePath(msg.media_path)
-          if (msg.body) sendOptions.caption = msg.body
-        }
-
-        if (msg.mentions_json) {
+          const media = MessageMedia.fromFilePath(msg.media_path)
+          const opts = {}
+          if (msg.body) opts.caption = msg.body
+          if (msg.mentions_json) {
+            try {
+              const ids = JSON.parse(msg.mentions_json)
+              opts.mentions = (await Promise.all(ids.map(id => client.getContactById(id).catch(() => null)))).filter(Boolean)
+            } catch {}
+          }
+          await client.sendMessage(waId, media, opts)
+        } else if (msg.mentions_json) {
           try {
             const ids = JSON.parse(msg.mentions_json)
-            sendOptions.mentions = (await Promise.all(ids.map(id => client.getContactById(id).catch(() => null)))).filter(Boolean)
-          } catch {}
+            const mentionContacts = (await Promise.all(ids.map(id => client.getContactById(id).catch(() => null)))).filter(Boolean)
+            await client.sendMessage(waId, msg.body, { mentions: mentionContacts })
+          } catch {
+            await client.sendMessage(waId, msg.body)
+          }
+        } else {
+          await client.sendMessage(waId, msg.body)
         }
-
-        await client.sendMessage(waId, payload, sendOptions)
         await new Promise(r => setTimeout(r, 800))
       }
       return true
