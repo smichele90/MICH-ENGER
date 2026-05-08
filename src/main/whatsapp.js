@@ -325,6 +325,9 @@ class WhatsAppManager {
       }),
       puppeteer: {
         headless: true,
+        executablePath: app.isPackaged
+          ? path.join(process.resourcesPath, 'chrome', 'chrome-win64', 'chrome.exe')
+          : undefined,
         protocolTimeout: 180_000, // 3 min — evita timeout su sync di chat con molti messaggi
         args: [
           '--no-sandbox',
