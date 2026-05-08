@@ -605,24 +605,6 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
             <Mic size={18} strokeWidth={1.6} />
           </button>
         </div>
-        {selectedFile && (
-          <div className="chat-file-chip">
-            {selectedFile.isImage ? (
-              <img className="chat-file-chip__thumb" src={getSafeFileUrl(selectedFile.path)} alt={selectedFile.name} />
-            ) : (
-              <div className="chat-file-chip__icon">
-                <Paperclip size={14} strokeWidth={2} />
-              </div>
-            )}
-            <span className="chat-file-chip__name">
-              {selectedFile.name.length > 30 ? selectedFile.name.slice(0, 28) + '…' : selectedFile.name}
-            </span>
-            {selectedFile.size ? <span className="chat-file-chip__size">{formatBytes(selectedFile.size)}</span> : null}
-            <button className="chat-file-chip__remove" type="button" title="Rimuovi" onClick={() => setSelectedFile(null)}>
-              <X size={13} strokeWidth={2.5} />
-            </button>
-          </div>
-        )}
       {recording && (
         <div className="chat-recording-indicator" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', color: 'var(--accent)', fontSize: 13 }}>
           <span>Registrazione in corso</span>
@@ -630,23 +612,41 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
           <button className="chat-input-btn" title="Annulla" onClick={handleCancelRecording} style={{ color: 'var(--text-danger)' }}>✕</button>
         </div>
       )}
-        <div className="chat-input-wrapper">
-          {mentionActive && mentionSuggestions.length > 0 && (
-            <MentionSuggestions
-              suggestions={mentionSuggestions}
-              activeIndex={mentionIndex}
-              onSelect={insertMention}
-            />
+        <div className="chat-input-main">
+          {selectedFile && (
+            <div className="chat-file-chip">
+              <div className="chat-file-chip__icon">
+                {selectedFile.isImage
+                  ? <Image size={14} strokeWidth={2} />
+                  : <Paperclip size={14} strokeWidth={2} />}
+              </div>
+              <span className="chat-file-chip__name">
+                {selectedFile.name.length > 30 ? selectedFile.name.slice(0, 28) + '…' : selectedFile.name}
+              </span>
+              {selectedFile.size ? <span className="chat-file-chip__size">{formatBytes(selectedFile.size)}</span> : null}
+              <button className="chat-file-chip__remove" type="button" title="Rimuovi" onClick={() => setSelectedFile(null)}>
+                <X size={13} strokeWidth={2.5} />
+              </button>
+            </div>
           )}
-          <textarea
-            ref={textareaRef}
-            className="chat-input"
-            placeholder="Scrivi un messaggio..."
-            value={input}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            rows={1}
-          />
+          <div className="chat-input-wrapper">
+            {mentionActive && mentionSuggestions.length > 0 && (
+              <MentionSuggestions
+                suggestions={mentionSuggestions}
+                activeIndex={mentionIndex}
+                onSelect={insertMention}
+              />
+            )}
+            <textarea
+              ref={textareaRef}
+              className="chat-input"
+              placeholder="Scrivi un messaggio..."
+              value={input}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              rows={1}
+            />
+          </div>
         </div>
         <button className="chat-input-btn" title="Programma invio" onClick={() => setShowSchedule(true)}><Clock size={18} strokeWidth={1.6} /></button>
         <button className="chat-send-btn" onClick={handleSend} title="Invia">
