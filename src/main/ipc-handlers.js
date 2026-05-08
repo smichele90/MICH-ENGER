@@ -265,8 +265,42 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
   ipcMain.handle('scheduled:delete', (_, id) => {
     if (scheduler) scheduler.cancelOne(id)
+    const row = db.prepare('SELECT media_path FROM scheduled_messages WHERE id = ?').get(id)
     db.prepare('DELETE FROM scheduled_messages WHERE id = ?').run(id)
+    if (row?.media_path) {
+      const scheduledMediaDir = path.join(app.getPath('userData'), 'scheduled-media')
+      const resolved = path.resolve(row.media_path)
+      if (resolved.startsWith(scheduledMediaDir + path.sep)) {
+        try { fs.unlinkSync(resolved) } catch {}
+      }
+    }
     return true
+  })
+
+  // MEDIA helpers per messaggi programmati
+  ipcMain.handle('media:pickFile', async () => {
+    const result = await dialog.showOpenDialog({
+      title: 'Seleziona file da allegare',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
+        { name: 'Video',    extensions: ['mp4', 'mov', 'avi', 'mkv', 'webm'] },
+        { name: 'Audio',    extensions: ['mp3', 'ogg', 'wav', 'm4a', 'opus'] },
+        { name: 'Documenti', extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip'] },
+        { name: 'Tutti i file', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
+  ipcMain.handle('media:saveRecording', async (_, uint8array) => {
+    const scheduledMediaDir = path.join(app.getPath('userData'), 'scheduled-media')
+    fs.mkdirSync(scheduledMediaDir, { recursive: true })
+    const filename = `rec-${Date.now()}.ogg`
+    const filePath = path.join(scheduledMediaDir, filename)
+    fs.writeFileSync(filePath, Buffer.from(uint8array))
+    return filePath
   })
 
 
