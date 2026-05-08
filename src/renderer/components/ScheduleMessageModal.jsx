@@ -199,18 +199,16 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     return t?.name || ''
   }, [form.target_id, targetList])
 
-  const handlePickFile = (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    const filePath = file.path  // Electron espone il percorso assoluto
-    const name = file.name
+  const handlePickFile = async () => {
+    const filePath = await window.api.pickMediaFile()
+    if (!filePath) return
+    const name = filePath.split(/[\\/]/).pop()
     const ext = name.split('.').pop().toLowerCase()
     const imgExts = ['jpg','jpeg','png','gif','webp']
     const audioExts = ['mp3','ogg','wav','m4a','opus']
     const videoExts = ['mp4','mov','avi','mkv','webm']
     const type = imgExts.includes(ext) ? 'image' : audioExts.includes(ext) ? 'audio' : videoExts.includes(ext) ? 'video' : 'document'
     setMediaAttachment({ path: filePath, name, type })
-    e.target.value = ''  // reset per poter riselezionare lo stesso file
   }
 
   const handleStartRecording = async () => {
@@ -419,13 +417,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 8 }}>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  style={{ display: 'none' }}
-                  onChange={handlePickFile}
-                />
-                <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={() => fileInputRef.current?.click()}>
+                <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={handlePickFile}>
                   <Paperclip size={14} strokeWidth={1.6} /> Allega file
                 </button>
                 {!isRecording ? (

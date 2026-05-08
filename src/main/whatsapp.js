@@ -281,8 +281,14 @@ class WhatsAppManager {
         targets = members.map(m => m.whatsapp_id)
       }
       for (const waId of targets) {
+        if (msg.media_path) {
+          const exists = fs.existsSync(msg.media_path)
+          console.log(`[WA] scheduled media_path="${msg.media_path}" exists=${exists}`)
+          if (!exists) console.warn(`[WA] File non trovato: ${msg.media_path}`)
+        }
         if (msg.media_path && fs.existsSync(msg.media_path)) {
           const media = MessageMedia.fromFilePath(msg.media_path)
+          console.log(`[WA] invio media mime=${media.mimetype} size=${media.data?.length}`)
           const opts = {}
           if (msg.body) opts.caption = msg.body
           if (msg.mentions_json) {
@@ -292,6 +298,7 @@ class WhatsAppManager {
             } catch {}
           }
           await client.sendMessage(waId, media, opts)
+          console.log(`[WA] media inviato a ${waId}`)
         } else if (msg.mentions_json) {
           try {
             const ids = JSON.parse(msg.mentions_json)

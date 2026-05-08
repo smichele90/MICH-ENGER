@@ -1,4 +1,4 @@
-const { ipcMain, shell, dialog, app } = require('electron')
+const { ipcMain, shell, dialog, app, BrowserWindow } = require('electron')
 const fs = require('fs')
 const path = require('path')
 const { dedupeContacts, getReactionsByContact } = require('./database')
@@ -278,9 +278,11 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
 
   // MEDIA helpers per messaggi programmati
-  ipcMain.handle('media:pickFile', async () => {
-    const result = await dialog.showOpenDialog({
+  ipcMain.handle('media:pickFile', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = await dialog.showOpenDialog(win, {
       title: 'Seleziona file da allegare',
+      defaultPath: app.getPath('home'),
       properties: ['openFile'],
       filters: [
         { name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
