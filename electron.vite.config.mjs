@@ -9,7 +9,12 @@ export default defineConfig({
       outDir: 'out/main',
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/main/main.js')
+          index: resolve(__dirname, 'src/main/main.js'),
+          database: resolve(__dirname, 'src/main/database.js'),
+          'ipc-handlers': resolve(__dirname, 'src/main/ipc-handlers.js'),
+          whatsapp: resolve(__dirname, 'src/main/whatsapp.js'),
+          scheduler: resolve(__dirname, 'src/main/scheduler.js'),
+          'notification-manager': resolve(__dirname, 'src/main/notification-manager.js'),
         }
       }
     }
