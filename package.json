@@ -33,6 +33,10 @@
     "files": [
       "out/**"
     ],
+    "asarUnpack": [
+      "**/*.node",
+      "**/node_modules/better-sqlite3/**"
+    ],
     "extraMetadata": {
       "main": "out/main/index.js"
     },
