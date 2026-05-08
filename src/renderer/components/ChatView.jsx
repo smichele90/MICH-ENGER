@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, Share2 } from 'lucide-react'
+import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, Share2, X } from 'lucide-react'
 import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import MediaPreview from './MediaPreview'
@@ -606,22 +606,21 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
           </button>
         </div>
         {selectedFile && (
-          <div className="chat-file-preview">
+          <div className="chat-file-chip">
             {selectedFile.isImage ? (
-              <img className="chat-file-preview__thumb" src={getSafeFileUrl(selectedFile.path)} alt={selectedFile.name} />
+              <img className="chat-file-chip__thumb" src={getSafeFileUrl(selectedFile.path)} alt={selectedFile.name} />
             ) : (
-              <div className="chat-file-preview__thumb chat-file-preview__thumb--file">📎</div>
-            )}
-            <div className="chat-file-preview__info">
-              <div>
-                <div className="chat-file-preview__name">{selectedFile.name}</div>
-                <div className="chat-file-preview__meta">
-                  {selectedFile.mime ? `${selectedFile.mime}` : 'Tipo sconosciuto'}
-                  {selectedFile.size ? ` · ${formatBytes(selectedFile.size)}` : ''}
-                </div>
+              <div className="chat-file-chip__icon">
+                <Paperclip size={14} strokeWidth={2} />
               </div>
-              <button className="btn btn--ghost" type="button" onClick={() => setSelectedFile(null)}>Rimuovi</button>
-            </div>
+            )}
+            <span className="chat-file-chip__name">
+              {selectedFile.name.length > 30 ? selectedFile.name.slice(0, 28) + '…' : selectedFile.name}
+            </span>
+            {selectedFile.size ? <span className="chat-file-chip__size">{formatBytes(selectedFile.size)}</span> : null}
+            <button className="chat-file-chip__remove" type="button" title="Rimuovi" onClick={() => setSelectedFile(null)}>
+              <X size={13} strokeWidth={2.5} />
+            </button>
           </div>
         )}
       {recording && (
