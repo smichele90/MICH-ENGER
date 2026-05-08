@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Minus, Square, X, Copy } from 'lucide-react'
 import Sidebar from './components/Sidebar'
 import AccountSwitcher from './components/AccountSwitcher'
@@ -32,7 +32,7 @@ function playNotificationSound() {
 }
 
 export default function App() {
-  const [theme, setTheme] = useState('dark')
+  const [theme, setTheme] = useState('light')
   const [accounts, setAccounts] = useState([])
   const [activeAccount, setActiveAccount] = useState(null)
   const [activeView, setActiveView] = useState('chat') // chat, tasks, scheduled
@@ -57,11 +57,10 @@ export default function App() {
   // Carica tema e accounts all'avvio
   useEffect(() => {
     async function init() {
-      const savedTheme = await window.api.getSetting('theme')
-      if (savedTheme) {
-        setTheme(savedTheme)
-        document.documentElement.setAttribute('data-theme', savedTheme)
-      }
+      const savedTheme = await window.api.getSetting('theme') || 'light'
+      setTheme(savedTheme)
+      document.documentElement.setAttribute('data-theme', savedTheme)
+      localStorage.setItem('theme', savedTheme)
       const savedSound = await window.api.getSetting('soundEnabled')
       if (savedSound === 'false') { setSoundEnabled(false); soundEnabledRef.current = false }
       const savedColors = await window.api.getSetting('customColors')
@@ -69,7 +68,7 @@ export default function App() {
         try {
           const parsed = JSON.parse(savedColors)
           // Nuovo formato: { dark: {...}, light: {...} }
-          const themeKey = savedTheme || 'dark'
+          const themeKey = savedTheme || 'light'
           const c = parsed[themeKey]
           if (c) {
             if (c.sidebarBg) document.documentElement.style.setProperty('--bg-sidebar', c.sidebarBg)
@@ -148,6 +147,7 @@ export default function App() {
     const newTheme = theme === 'dark' ? 'light' : 'dark'
     setTheme(newTheme)
     document.documentElement.setAttribute('data-theme', newTheme)
+    localStorage.setItem('theme', newTheme)
     await window.api.setSetting('theme', newTheme)
   }, [theme])
 
@@ -234,13 +234,13 @@ export default function App() {
         <span className="titlebar__title">MICH-ENGER</span>
         <div className="titlebar__controls">
           <button className="titlebar__btn" onClick={handleMinimize} title="Riduci">
-            <Minus size={14} />
+            <Minus size={14} strokeWidth={1.6} />
           </button>
           <button className="titlebar__btn" onClick={handleMaximize} title="Ingrandisci">
-            {isMaximized ? <Copy size={12} /> : <Square size={12} />}
+            {isMaximized ? <Copy size={12} strokeWidth={1.6} /> : <Square size={12} strokeWidth={1.6} />}
           </button>
           <button className="titlebar__btn titlebar__btn--close" onClick={handleClose} title="Chiudi">
-            <X size={14} />
+            <X size={14} strokeWidth={1.6} />
           </button>
         </div>
       </div>

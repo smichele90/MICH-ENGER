@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+﻿import React, { useEffect, useMemo, useState } from 'react'
 import { X, Search, Folder, User, Users, Check, Plus, Minus } from 'lucide-react'
 
 /**
@@ -67,20 +67,20 @@ export default function FolderContactManager({ folder, accountId, onClose, onCha
       <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 760, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}>
         <div className="modal__header">
           <span className="modal__title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Folder size={18} color={folder.color || 'var(--accent)'} />
+            <Folder size={18} color={folder.color || 'var(--accent)'} strokeWidth={1.6} />
             Gestione cartella · {folder.name}
             <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>
               ({members.length} contatti)
             </span>
           </span>
-          <button className="btn--icon" onClick={onClose}><X size={20} /></button>
+          <button className="btn--icon" onClick={onClose}><X size={20} strokeWidth={1.6} /></button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, flex: 1, minHeight: 0 }}>
           {/* MEMBRI */}
           <div style={colStyle}>
             <div style={colHeader}>
-              <Check size={14} color="var(--success)" /> Nella cartella
+              <Check size={14} color="var(--success)" strokeWidth={1.6} /> Nella cartella
               <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{members.length}</span>
             </div>
             <div style={listStyle}>
@@ -90,7 +90,7 @@ export default function FolderContactManager({ folder, accountId, onClose, onCha
                 members.map(c => (
                   <Row key={c.id} contact={c}>
                     <button className="btn--icon" disabled={busy} title="Rimuovi" onClick={() => remove(c.id)}>
-                      <Minus size={14} />
+                      <Minus size={14} strokeWidth={1.6} />
                     </button>
                   </Row>
                 ))
@@ -101,7 +101,7 @@ export default function FolderContactManager({ folder, accountId, onClose, onCha
           {/* CANDIDATI */}
           <div style={colStyle}>
             <div style={colHeader}>
-              <Search size={14} /> Aggiungi contatti
+              <Search size={14} strokeWidth={1.6} /> Aggiungi contatti
             </div>
             <div style={{ padding: 8, borderBottom: '1px solid var(--border)' }}>
               <input
@@ -119,7 +119,7 @@ export default function FolderContactManager({ folder, accountId, onClose, onCha
                 candidates.map(c => (
                   <Row key={c.id} contact={c}>
                     <button className="btn--icon" disabled={busy} title="Aggiungi" onClick={() => add(c.id)}>
-                      <Plus size={14} />
+                      <Plus size={14} strokeWidth={1.6} />
                     </button>
                   </Row>
                 ))
@@ -146,7 +146,7 @@ function Row({ contact, children }) {
         width: 28, height: 28, borderRadius: '50%', background: 'var(--accent-light)',
         color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
       }}>
-        {contact.is_group ? <Users size={14} /> : <User size={14} />}
+        {contact.is_group ? <Users size={14} strokeWidth={1.6} /> : <User size={14} strokeWidth={1.6} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

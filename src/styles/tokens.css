@@ -1,0 +1,141 @@
+/* ═══════════════════════════════════════════════ */
+/* MICH-ENGER Design Tokens — Bronze/Warm system  */
+/* ═══════════════════════════════════════════════ */
+
+:root {
+  /* Surfaces — light theme (default) */
+  --bg:        #f3ede2;
+  --bg-2:      #f8f3ea;
+  --bg-3:      #fdfaf3;
+  --bg-4:      #ffffff;
+  --tint:      #ebe2d1;
+  --tint-2:    #e3d8c2;
+
+  /* Ink */
+  --ink:       #2b2622;
+  --ink-2:     #4a4138;
+  --ink-3:     #8a7d70;
+  --ink-4:     #b8aa9a;
+
+  /* Hairlines */
+  --line:      #e6dccb;
+  --line-2:    #d8caaf;
+
+  /* Accent: bronze */
+  --accent:      #8b6f47;
+  --accent-h:    #6f5635;
+  --accent-soft: #e8dcc4;
+  --accent-ink:  #faf7f0;
+
+  /* Status */
+  --ok:        #6b8a5e;
+  --ok-soft:   #dee5cf;
+  --warn:      #b8763a;
+  --warn-soft: #f1dcc0;
+  --danger:    #9a4f3f;
+  --danger-soft: #ecd2c8;
+
+  /* Typography */
+  --serif: "Instrument Serif", Georgia, serif;
+  --sans:  "Geist", system-ui, sans-serif;
+  --mono:  "Geist Mono", ui-monospace, monospace;
+
+  /* Radii */
+  --r-1:    6px;
+  --r-2:    10px;
+  --r-3:    14px;
+  --r-pill: 999px;
+
+  /* Shadows — solo per modali e menu fluttuanti */
+  --shadow-1: 0 1px 0 rgba(43,38,34,.04), 0 1px 2px rgba(43,38,34,.04);
+  --shadow-2: 0 8px 24px -12px rgba(43,38,34,.18), 0 2px 4px rgba(43,38,34,.04);
+  --shadow-3: 0 24px 60px -24px rgba(43,38,34,.30), 0 2px 6px rgba(43,38,34,.06);
+
+  /* Spacing */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  12px;
+  --s-4:  16px;
+  --s-5:  20px;
+  --s-6:  24px;
+  --s-8:  32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* Legacy aliases — usate da ColorPanel e dal CSS esistente */
+  --bg-primary:       var(--bg);
+  --bg-secondary:     var(--bg-2);
+  --bg-tertiary:      var(--bg-3);
+  --bg-sidebar:       var(--bg-3);
+  --bg-account-bar:   var(--bg);
+  --bg-hover:         var(--tint);
+  --bg-active:        var(--accent-soft);
+  --bg-input:         var(--bg-2);
+  --bg-modal:         var(--bg-4);
+  --bg-card:          var(--bg-3);
+  --bg-message-me:    var(--accent);
+  --bg-message-other: var(--bg-3);
+  --text-primary:     var(--ink);
+  --text-secondary:   var(--ink-2);
+  --text-muted:       var(--ink-3);
+  --text-inverse:     var(--accent-ink);
+  --accent-hover:     var(--accent-h);
+  --accent-light:     var(--accent-soft);
+  --border:           var(--line);
+  --border-light:     var(--line);
+  --shadow:           var(--shadow-3);
+  --shadow-sm:        var(--shadow-1);
+  --radius-sm:        var(--r-1);
+  --radius-md:        var(--r-2);
+  --radius-lg:        var(--r-3);
+  --radius-full:      var(--r-pill);
+  --font:             var(--sans);
+  --success:          var(--ok);
+  --warning:          var(--warn);
+}
+
+/* Dark theme override */
+[data-theme="dark"] {
+  --bg:        #1a1613;
+  --bg-2:      #221d18;
+  --bg-3:      #2a241e;
+  --bg-4:      #322b24;
+  --tint:      #3a3128;
+  --tint-2:    #463c30;
+
+  --ink:       #f3ede2;
+  --ink-2:     #d4c8b5;
+  --ink-3:     #9a8d7e;
+  --ink-4:     #6e6256;
+
+  --line:      #3a3128;
+  --line-2:    #4a3f33;
+
+  --accent:      #c89970;
+  --accent-h:    #d8aa82;
+  --accent-soft: #3a2e22;
+  --accent-ink:  #1a1613;
+
+  --ok:        #8aa37a;
+  --ok-soft:   #2e3a26;
+  --warn:      #d49560;
+  --warn-soft: #3d2e1d;
+  --danger:    #c0715e;
+  --danger-soft: #3a221b;
+
+  --shadow-1: 0 1px 0 rgba(0,0,0,.20), 0 1px 2px rgba(0,0,0,.16);
+  --shadow-2: 0 8px 24px -12px rgba(0,0,0,.55), 0 2px 4px rgba(0,0,0,.20);
+  --shadow-3: 0 24px 60px -24px rgba(0,0,0,.75), 0 2px 6px rgba(0,0,0,.30);
+}
+
+/* Avatar gradients — dark override */
+[data-theme="dark"] .avatar-square,
+[data-theme="dark"] .av.gradient-a {
+  background: linear-gradient(135deg, #8a6648, #5a4030);
+}
+[data-theme="dark"] .av.gradient-b {
+  background: linear-gradient(135deg, #7a6a52, #4a3e2e);
+}
+[data-theme="dark"] .av.gradient-c {
+  background: linear-gradient(135deg, #9a724a, #6a4a30);
+}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+﻿import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { X, Send, Eye, Folder, User, Users, Clock, Repeat, AlertTriangle, Search, ChevronDown } from 'lucide-react'
 
 const RECURRENCE_OPTS = [
@@ -56,7 +56,7 @@ function SearchableSelect({ value, options, placeholder, onChange }) {
         <span style={{ color: selected ? 'var(--text-primary)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {selected ? selected.name : placeholder}
         </span>
-        <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8, transform: isOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }} />
+        <ChevronDown size={14} style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8, transform: isOpen ? 'rotate(180deg)' : 'none', transition: '0.2s' }} strokeWidth={1.6} />
       </button>
 
       {/* Dropdown */}
@@ -69,7 +69,7 @@ function SearchableSelect({ value, options, placeholder, onChange }) {
         }}>
           {/* Search input */}
           <div style={{ padding: '8px', borderBottom: '1px solid var(--border-light)', position: 'relative' }}>
-            <Search size={13} style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <Search size={13} style={{ position: 'absolute', left: 18, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} strokeWidth={1.6} />
             <input
               ref={searchRef}
               className="chat-input"
@@ -277,14 +277,14 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     onClose()
   }
 
-  const targetIcon = form.target_type === 'folder' ? <Folder size={16} /> : (form.target_type === 'group' ? <Users size={16} /> : <User size={16} />)
+  const targetIcon = form.target_type === 'folder' ? <Folder size={16} strokeWidth={1.6} /> : (form.target_type === 'group' ? <Users size={16} strokeWidth={1.6} /> : <User size={16} strokeWidth={1.6} />)
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal" style={{ width: 560, maxHeight: '90vh', overflow: 'auto' }}>
         <div className="modal__header">
-          <span className="modal__title">{editing ? 'Modifica messaggio programmato' : 'Programma messaggio'}</span>
-          <button className="btn--icon" onClick={onClose}><X size={20} /></button>
+          <span className="modal__title">{editing ? <>Modifica <em>messaggio</em></> : <>Programma <em>messaggio</em></>}</span>
+          <button className="btn--icon" onClick={onClose}><X size={20} strokeWidth={1.6} /></button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -293,9 +293,9 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
             <label style={lblStyle}>Destinatario</label>
             <div style={{ display: 'flex', gap: 6 }}>
               {[
-                { v: 'contact', label: 'Contatto', icon: <User size={14} /> },
-                { v: 'group',   label: 'Gruppo',   icon: <Users size={14} /> },
-                { v: 'folder',  label: 'Cartella', icon: <Folder size={14} /> }
+                { v: 'contact', label: 'Contatto', icon: <User size={14} strokeWidth={1.6} /> },
+                { v: 'group',   label: 'Gruppo',   icon: <Users size={14} strokeWidth={1.6} /> },
+                { v: 'folder',  label: 'Cartella', icon: <Folder size={14} strokeWidth={1.6} /> }
               ].map(opt => (
                 <button
                   key={opt.v}
@@ -345,13 +345,13 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={lblStyle}><Clock size={12} /> Data e ora</label>
+              <label style={lblStyle}><Clock size={12} strokeWidth={1.6} /> Data e ora</label>
               <input type="datetime-local" className="chat-input"
                 value={form.scheduled_at}
                 onChange={e => setForm(f => ({ ...f, scheduled_at: e.target.value }))} />
             </div>
             <div>
-              <label style={lblStyle}><Repeat size={12} /> Ricorrenza</label>
+              <label style={lblStyle}><Repeat size={12} strokeWidth={1.6} /> Ricorrenza</label>
               <select className="chat-input" value={form.recurrence_type}
                 onChange={e => setForm(f => ({ ...f, recurrence_type: e.target.value }))}>
                 {RECURRENCE_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -370,7 +370,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
 
           {willSendInPast && form.recurrence_type === 'once' && (
             <div style={warnBox}>
-              <AlertTriangle size={14} /> La data è nel passato: il messaggio non verrà inviato.
+              <AlertTriangle size={14} strokeWidth={1.6} /> La data è nel passato: il messaggio non verrà inviato.
             </div>
           )}
 
@@ -378,7 +378,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
           {form.body && form.target_id && (
             <div style={previewBox}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Eye size={12} /> ANTEPRIMA
+                <Eye size={12} strokeWidth={1.6} /> ANTEPRIMA
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, fontSize: 13 }}>
                 {targetIcon} <strong>{selectedTargetName || '—'}</strong>
@@ -406,7 +406,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
             <button type="button" className="btn btn--ghost" onClick={onClose}>Annulla</button>
             <button type="button" className="btn btn--primary" disabled={!isValid} onClick={handleSave}>
-              <Send size={14} /> {editing ? 'Salva modifiche' : 'Programma'}
+              <Send size={14} strokeWidth={1.6} /> {editing ? 'Salva modifiche' : 'Programma'}
             </button>
           </div>
         </div>

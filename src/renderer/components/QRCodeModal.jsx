@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+﻿import React, { useState, useEffect, useRef } from 'react'
 import { X, RefreshCw, CheckCircle2 } from 'lucide-react'
 import QRCode from 'qrcode'
 
@@ -105,14 +105,14 @@ export default function QRCodeModal({ onClose, onConnected }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 400, textAlign: 'center' }}>
         <div className="modal__header">
-          <span className="modal__title">Collega WhatsApp</span>
-          <button className="btn--icon" onClick={onClose}><X size={20} /></button>
+          <span className="modal__title">Collega <em>WhatsApp</em></span>
+          <button className="btn--icon" onClick={onClose}><X size={20} strokeWidth={1.6} /></button>
         </div>
 
         <div style={{ padding: '20px 0' }}>
           {status === 'loading' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <RefreshCw className="animate-spin" size={48} color="var(--accent)" />
+              <RefreshCw className="animate-spin" size={48} color="var(--accent)" strokeWidth={1.6} />
               <p style={{ color: 'var(--text-secondary)' }}>Inizializzazione sessione...</p>
             </div>
           )}
@@ -136,14 +136,14 @@ export default function QRCodeModal({ onClose, onConnected }) {
 
           {status === 'connecting' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <RefreshCw className="animate-spin" size={48} color="var(--accent)" />
+              <RefreshCw className="animate-spin" size={48} color="var(--accent)" strokeWidth={1.6} />
               <p style={{ color: 'var(--text-secondary)' }}>Connessione a WhatsApp in corso...</p>
             </div>
           )}
 
           {status === 'ready' && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-              <CheckCircle2 size={64} color="var(--success)" />
+              <CheckCircle2 size={64} color="var(--success)" strokeWidth={1.6} />
               <p style={{ fontSize: 18, fontWeight: 600 }}>Dispositivo Collegato!</p>
               <p style={{ color: 'var(--text-secondary)' }}>Sincronizzazione dei contatti in corso...</p>
             </div>

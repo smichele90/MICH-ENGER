@@ -89,7 +89,7 @@ function createTables() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       parent_id INTEGER,
-      color TEXT DEFAULT '#6C3CE1',
+      color TEXT DEFAULT '#8b6f47',
       icon TEXT DEFAULT 'folder',
       sort_order INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
@@ -169,7 +169,7 @@ function createTables() {
     CREATE TABLE IF NOT EXISTS task_labels (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
-      color TEXT DEFAULT '#6C3CE1'
+      color TEXT DEFAULT '#8b6f47'
     );
 
     -- Associazione task-etichette

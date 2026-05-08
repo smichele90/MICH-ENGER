@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { Clock, Trash2, Plus, Folder, Users, User, CheckCircle2, Edit2, Pause, Play } from 'lucide-react'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import ConfirmDialog from './ConfirmDialog'
@@ -45,9 +45,9 @@ export default function ScheduledList({ accountId }) {
   }
 
   const targetIcon = (msg) => {
-    if (msg.target_type === 'folder') return <Folder size={16} color="var(--accent)" />
-    if (msg.target_type === 'group') return <Users size={16} color="var(--accent)" />
-    return <User size={16} color="var(--accent)" />
+    if (msg.target_type === 'folder') return <Folder size={16} color="var(--accent)" strokeWidth={1.6} />
+    if (msg.target_type === 'group') return <Users size={16} color="var(--accent)" strokeWidth={1.6} />
+    return <User size={16} color="var(--accent)" strokeWidth={1.6} />
   }
 
   const formatNext = (msg) => {
@@ -59,20 +59,20 @@ export default function ScheduledList({ accountId }) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div className="main-header">
         <div className="main-header__info">
-          <div className="main-header__name">🕒 Messaggi Programmati</div>
+          <div className="main-header__name">🕒 Messaggi <span className="t-sub">Programmati</span></div>
         </div>
         <button className="btn btn--primary" onClick={handleNew}>
-          <Plus size={14} /> Programma Messaggio
+          <Plus size={14} strokeWidth={1.6} /> Programma Messaggio
         </button>
       </div>
 
       <div style={{ flex: 1, padding: 20, overflowY: 'auto' }}>
         {messages.length === 0 ? (
           <div className="empty-state">
-            <Clock size={48} color="var(--text-muted)" style={{ opacity: 0.3 }} />
+            <Clock size={48} color="var(--text-muted)" style={{ opacity: 0.3 }} strokeWidth={1.6} />
             <p>Nessun messaggio programmato.</p>
             <button className="btn btn--primary" onClick={handleNew} style={{ marginTop: 12 }}>
-              <Plus size={14} /> Crea il primo
+              <Plus size={14} strokeWidth={1.6} /> Crea il primo
             </button>
           </div>
         ) : (
@@ -92,13 +92,13 @@ export default function ScheduledList({ accountId }) {
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>
                     <button className="btn--icon" title={msg.is_active ? 'Sospendi' : 'Riattiva'} onClick={() => handleToggleActive(msg)}>
-                      {msg.is_active ? <Pause size={14} /> : <Play size={14} />}
+                      {msg.is_active ? <Pause size={14} strokeWidth={1.6} /> : <Play size={14} strokeWidth={1.6} />}
                     </button>
                     <button className="btn--icon" title="Modifica" onClick={() => handleEdit(msg)}>
-                      <Edit2 size={14} />
+                      <Edit2 size={14} strokeWidth={1.6} />
                     </button>
                     <button className="btn--icon" title="Elimina" onClick={() => handleDelete(msg.id)}>
-                      <Trash2 size={14} />
+                      <Trash2 size={14} strokeWidth={1.6} />
                     </button>
                   </div>
                 </div>
@@ -109,7 +109,7 @@ export default function ScheduledList({ accountId }) {
 
                 <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    {msg.last_sent_at ? <CheckCircle2 size={12} color="var(--success)" /> : <Clock size={12} color="var(--warning)" />}
+                    {msg.last_sent_at ? <CheckCircle2 size={12} color="var(--success)" strokeWidth={1.6} /> : <Clock size={12} color="var(--warning)" strokeWidth={1.6} />}
                     {formatNext(msg)}
                   </div>
                   {msg.recurrence_type !== 'once' && <span>♻️ {msg.recurrence_type}</span>}

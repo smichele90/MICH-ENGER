@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { X, Save, Calendar, Bell, Repeat, Flag, Tag, Trash2, Plus, ExternalLink } from 'lucide-react'
 import ConfirmDialog from './ConfirmDialog'
 
 const PRIORITIES = [
-  { v: 'low',    label: 'Bassa',  color: '#3b82f6' },
-  { v: 'medium', label: 'Media',  color: '#f59e0b' },
-  { v: 'high',   label: 'Alta',   color: '#ef4444' }
+  { v: 'low',    label: 'Bassa',  color: '#6b8a5e' },
+  { v: 'medium', label: 'Media',  color: '#b8763a' },
+  { v: 'high',   label: 'Alta',   color: '#9a4f3f' }
 ]
 
 const STATUSES = [
@@ -40,7 +40,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
   const [labels, setLabels] = useState([])
   const [allLabels, setAllLabels] = useState([])
   const [showLabelPicker, setShowLabelPicker] = useState(false)
-  const [newLabel, setNewLabel] = useState({ name: '', color: '#6C3CE1' })
+  const [newLabel, setNewLabel] = useState({ name: '', color: '#8b6f47' })
   const [showConfirmDelete, setShowConfirmDelete] = useState(false)
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
     if (!newLabel.name.trim()) return
     const r = await window.api.createLabel({ name: newLabel.name.trim(), color: newLabel.color })
     if (r?.id) await window.api.assignLabel(task.id, r.id)
-    setNewLabel({ name: '', color: '#6C3CE1' })
+    setNewLabel({ name: '', color: '#8b6f47' })
     refreshLabels()
   }
 
@@ -97,8 +97,8 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal" style={{ width: 600, maxHeight: '90vh', overflow: 'auto' }}>
         <div className="modal__header">
-          <span className="modal__title">Dettaglio Task</span>
-          <button className="btn--icon" onClick={onClose}><X size={20} /></button>
+          <span className="modal__title">Dettaglio <em>Task</em></span>
+          <button className="btn--icon" onClick={onClose}><X size={20} strokeWidth={1.6} /></button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -123,7 +123,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
               </select>
             </div>
             <div>
-              <label style={lbl}><Flag size={12} /> Priorità</label>
+              <label style={lbl}><Flag size={12} strokeWidth={1.6} /> Priorità</label>
               <select className="chat-input" value={form.priority}
                 onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
                 <option value="">Nessuna</option>
@@ -134,12 +134,12 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              <label style={lbl}><Calendar size={12} /> Scadenza</label>
+              <label style={lbl}><Calendar size={12} strokeWidth={1.6} /> Scadenza</label>
               <input type="datetime-local" className="chat-input" value={form.due_date}
                 onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} />
             </div>
             <div>
-              <label style={lbl}><Repeat size={12} /> Ricorrenza</label>
+              <label style={lbl}><Repeat size={12} strokeWidth={1.6} /> Ricorrenza</label>
               <select className="chat-input" value={form.recurrence_type}
                 onChange={e => setForm(f => ({ ...f, recurrence_type: e.target.value }))}>
                 {RECURRENCES.map(r => <option key={r.v} value={r.v}>{r.label}</option>)}
@@ -156,7 +156,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
                 onChange={e => setForm(f => ({ ...f, notify: e.target.checked }))}
                 style={{ cursor: 'pointer' }}
               />
-              <Bell size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <Bell size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} strokeWidth={1.6} />
               <label htmlFor="task-notify-checkbox" style={{ fontSize: 13, cursor: 'pointer', margin: 0 }}>
                 Notifica desktop
               </label>
@@ -170,7 +170,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
 
           {/* Labels */}
           <div>
-            <label style={lbl}><Tag size={12} /> Etichette</label>
+            <label style={lbl}><Tag size={12} strokeWidth={1.6} /> Etichette</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 6 }}>
               {labels.map(l => (
                 <span key={l.id} onClick={() => toggleLabel(l)}
@@ -181,7 +181,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
               ))}
               <button className="btn btn--ghost" type="button" onClick={() => setShowLabelPicker(s => !s)}
                 style={{ fontSize: 11, padding: '2px 8px' }}>
-                <Plus size={12} /> Etichetta
+                <Plus size={12} strokeWidth={1.6} /> Etichetta
               </button>
             </div>
             {showLabelPicker && (
@@ -206,7 +206,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
                     onChange={e => setNewLabel(n => ({ ...n, color: e.target.value }))}
                     style={{ width: 36, height: 30, border: 'none', background: 'none', cursor: 'pointer' }} />
                   <button className="btn btn--primary" type="button" onClick={handleCreateLabel}
-                    style={{ padding: '0 10px' }}><Plus size={14} /></button>
+                    style={{ padding: '0 10px' }}><Plus size={14} strokeWidth={1.6} /></button>
                 </div>
               </div>
             )}
@@ -222,7 +222,7 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
                 padding: '8px 12px', cursor: 'pointer', textAlign: 'left'
               }}
             >
-              <ExternalLink size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+              <ExternalLink size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} strokeWidth={1.6} />
               <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
                 Vai al messaggio originale
               </span>
@@ -231,12 +231,12 @@ export default function TaskDetailModal({ task, onClose, onSaved, onDeleted, onN
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
             <button className="btn btn--danger" type="button" onClick={handleDelete}>
-              <Trash2 size={14} /> Elimina
+              <Trash2 size={14} strokeWidth={1.6} /> Elimina
             </button>
             <div style={{ display: 'flex', gap: 8 }}>
               <button className="btn btn--ghost" type="button" onClick={onClose}>Annulla</button>
               <button className="btn btn--primary" type="button" onClick={handleSave}>
-                <Save size={14} /> Salva
+                <Save size={14} strokeWidth={1.6} /> Salva
               </button>
             </div>
           </div>

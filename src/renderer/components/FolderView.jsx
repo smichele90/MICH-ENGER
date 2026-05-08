@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { Folder, Users, User, Settings, Send, Trash2, MessageSquare } from 'lucide-react'
 import AvatarImage from './AvatarImage'
 import FolderContactManager from './FolderContactManager'
@@ -32,8 +32,8 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
     <>
       <div className="main-header">
         <div className="main-header__info">
-          <div className="main-header__avatar" style={{ background: (folder.color || '#6C3CE1') + '33', color: folder.color || 'var(--accent)' }}>
-            <Folder size={18} />
+          <div className="main-header__avatar" style={{ background: (folder.color || '#8b6f47') + '33', color: folder.color || 'var(--accent)' }}>
+            <Folder size={18} strokeWidth={1.6} />
           </div>
           <div>
             <div className="main-header__name">{folder.name}</div>
@@ -42,10 +42,10 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn--ghost" onClick={() => setShowSchedule(true)} disabled={members.length === 0}>
-            <Send size={14} /> Messaggio bulk
+            <Send size={14} strokeWidth={1.6} /> Messaggio bulk
           </button>
           <button className="btn btn--primary" onClick={() => setShowManager(true)}>
-            <Settings size={14} /> Gestisci contatti
+            <Settings size={14} strokeWidth={1.6} /> Gestisci contatti
           </button>
         </div>
       </div>
@@ -53,13 +53,13 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
       <div className="folder-members-panel">
         {members.length === 0 ? (
           <div className="empty-state">
-            <Folder size={48} color="var(--text-muted)" style={{ opacity: 0.3 }} />
+            <Folder size={48} color="var(--text-muted)" style={{ opacity: 0.3 }} strokeWidth={1.6} />
             <div className="empty-state__title">Cartella vuota</div>
             <div className="empty-state__text">
               Aggiungi contatti o gruppi alla cartella per gestirli insieme.
             </div>
             <button className="btn btn--primary" style={{ marginTop: 12 }} onClick={() => setShowManager(true)}>
-              <Settings size={14} /> Aggiungi contatti
+              <Settings size={14} strokeWidth={1.6} /> Aggiungi contatti
             </button>
           </div>
         ) : (
@@ -78,10 +78,10 @@ export default function FolderView({ folder, accountId, onSelectContact }) {
                 </div>
                 <div className="folder-member-row__actions">
                   <button className="btn--icon" title="Apri chat" onClick={(e) => { e.stopPropagation(); onSelectContact?.(c) }}>
-                    <MessageSquare size={14} />
+                    <MessageSquare size={14} strokeWidth={1.6} />
                   </button>
                   <button className="btn--icon" title="Rimuovi dalla cartella" onClick={(e) => handleRemove(c.id, e)}>
-                    <Trash2 size={14} />
+                    <Trash2 size={14} strokeWidth={1.6} />
                   </button>
                 </div>
               </div>

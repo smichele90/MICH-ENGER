@@ -118,7 +118,7 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
   ipcMain.handle('folders:create', (_, data) => {
     const result = db.prepare('INSERT INTO folders (name, parent_id, color, icon, sort_order) VALUES (?, ?, ?, ?, ?)')
-      .run(data.name, data.parent_id || null, data.color || '#6C3CE1', data.icon || 'folder', data.sort_order || 0)
+      .run(data.name, data.parent_id || null, data.color || '#8b6f47', data.icon || 'folder', data.sort_order || 0)
     return { id: result.lastInsertRowid }
   })
   ipcMain.handle('folders:update', (_, id, data) => {
@@ -312,7 +312,7 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     return db.prepare('SELECT * FROM task_labels ORDER BY name').all()
   })
   ipcMain.handle('taskLabels:create', (_, data) => {
-    const result = db.prepare('INSERT INTO task_labels (name, color) VALUES (?, ?)').run(data.name, data.color || '#6C3CE1')
+    const result = db.prepare('INSERT INTO task_labels (name, color) VALUES (?, ?)').run(data.name, data.color || '#8b6f47')
     return { id: result.lastInsertRowid }
   })
   ipcMain.handle('taskLabels:delete', (_, id) => {

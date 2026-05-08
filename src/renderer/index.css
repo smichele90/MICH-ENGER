@@ -2,67 +2,14 @@
 /* MICH-ENGER Design System                   */
 /* ═══════════════════════════════════════════ */
 
-/* Theme: Dark (default) */
+@import '../styles/tokens.css';
+
+/* Layout constants (non nei token) */
 :root {
-  --bg-primary: #1a1a2e;
-  --bg-secondary: #16213e;
-  --bg-tertiary: #0f3460;
-  --bg-sidebar: #12122a;
-  --bg-account-bar: #0d0d1f;
-  --bg-hover: rgba(255,255,255,0.06);
-  --bg-active: rgba(108,60,225,0.2);
-  --bg-input: #1e1e3a;
-  --bg-message-me: #6C3CE1;
-  --bg-message-other: #222244;
-  --bg-modal: #1a1a2e;
-  --bg-card: #1e1e38;
-  --text-primary: #e8e8f0;
-  --text-secondary: #9090b0;
-  --text-muted: #606080;
-  --text-inverse: #ffffff;
-  --accent: #6C3CE1;
-  --accent-hover: #7c4dff;
-  --accent-light: rgba(108,60,225,0.15);
-  --success: #10b981;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --info: #3b82f6;
-  --border: rgba(255,255,255,0.08);
-  --border-light: rgba(255,255,255,0.04);
-  --shadow: 0 4px 24px rgba(0,0,0,0.4);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-full: 9999px;
-  --font: 'Inter', -apple-system, sans-serif;
   --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
   --sidebar-width: 360px;
   --account-bar-width: 64px;
   --titlebar-height: 38px;
-}
-
-/* Theme: Light */
-[data-theme="light"] {
-  --bg-primary: #f5f5fa;
-  --bg-secondary: #ffffff;
-  --bg-tertiary: #eeeef5;
-  --bg-sidebar: #ffffff;
-  --bg-account-bar: #f0f0f8;
-  --bg-hover: rgba(0,0,0,0.04);
-  --bg-active: rgba(108,60,225,0.1);
-  --bg-input: #f0f0f6;
-  --bg-message-me: #6C3CE1;
-  --bg-message-other: #e8e8f0;
-  --bg-modal: #ffffff;
-  --bg-card: #ffffff;
-  --text-primary: #1a1a2e;
-  --text-secondary: #555577;
-  --text-muted: #9999aa;
-  --border: rgba(0,0,0,0.1);
-  --border-light: rgba(0,0,0,0.05);
-  --shadow: 0 4px 24px rgba(0,0,0,0.1);
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
 }
 
 /* Reset */
@@ -396,6 +343,7 @@ body {
   color: var(--accent); font-weight: 600;
 }
 .main-header__name { font-size: 15px; font-weight: 600; }
+.main-header__name .t-sub { color: var(--ink-4); font-style: italic; font-weight: 400; }
 .main-header__status { font-size: 12px; color: var(--text-secondary); }
 .main-header__actions { display: flex; gap: 4px; }
 
@@ -528,7 +476,7 @@ body {
 
 /* Ack ticks (spunte lettura) */
 .ack { display: inline-block; margin-left: 4px; font-size: 12px; vertical-align: middle; }
-.ack--pending, .ack--sent, .ack--delivered { color: rgba(255,255,255,0.6); }
+.ack--pending, .ack--sent, .ack--delivered { color: rgba(250,247,240,0.6); }
 .ack--read { color: #53bdeb; }
 
 /* Reactions bar */
@@ -679,9 +627,15 @@ body {
 }
 .btn--icon:hover { background: var(--bg-hover); color: var(--text-primary); }
 
+/* Avatar gradients caldi per lista contatti */
+.av.bg-a { background: linear-gradient(135deg, #c89f7a, #a8784e); color: #fdfaf3; }
+.av.bg-b { background: linear-gradient(135deg, #b8a482, #8a7458); color: #fdfaf3; }
+.av.bg-c { background: linear-gradient(135deg, #d4a373, #a8754a); color: #fdfaf3; }
+
 /* ═══ MODAL ═══ */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  position: fixed; inset: 0; background: rgba(43,38,34,0.45);
+  backdrop-filter: blur(2px);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000; animation: fadeIn 0.2s ease;
 }
@@ -692,7 +646,8 @@ body {
   overflow-y: auto;
 }
 .modal__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-.modal__title { font-size: 18px; font-weight: 700; }
+.modal__title { font-size: 18px; font-weight: 700; font-family: var(--serif); }
+.modal__title em { font-style: italic; color: var(--accent); font-weight: 400; }
 
 /* ═══ CONTEXT MENU ═══ */
 .context-menu {
@@ -773,8 +728,8 @@ body {
 .color-panel__notice {
   margin: 10px 12px 0;
   padding: 7px 10px;
-  background: rgba(245,158,11,0.1);
-  border: 1px solid rgba(245,158,11,0.25);
+  background: var(--warn-soft);
+  border: 1px solid var(--warn);
   border-radius: var(--radius-sm);
   font-size: 11px; color: var(--warning); line-height: 1.45;
 }

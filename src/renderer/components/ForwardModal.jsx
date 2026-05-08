@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+﻿import React, { useState, useEffect, useMemo } from 'react'
 import { X, Search, Send } from 'lucide-react'
 
 export default function ForwardModal({ waSerializedId, accountId, onClose }) {
@@ -58,12 +58,12 @@ export default function ForwardModal({ waSerializedId, accountId, onClose }) {
     <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="modal" style={{ minWidth: 380, maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
         <div className="modal__header">
-          <span className="modal__title">Inoltra messaggio</span>
-          <button className="chat-input-btn" onClick={onClose}><X size={18} /></button>
+          <span className="modal__title">Inoltra <em>messaggio</em></span>
+          <button className="chat-input-btn" onClick={onClose}><X size={18} strokeWidth={1.6} /></button>
         </div>
 
         <div className="sidebar__search-wrapper" style={{ marginBottom: 12 }}>
-          <Search size={14} className="sidebar__search-icon" />
+          <Search size={14} className="sidebar__search-icon" strokeWidth={1.6} />
           <input
             className="sidebar__search-input"
             placeholder="Cerca contatto o gruppo..."
@@ -108,7 +108,7 @@ export default function ForwardModal({ waSerializedId, accountId, onClose }) {
             onClick={handleForward}
             disabled={!selected || sending}
           >
-            <Send size={14} style={{ marginRight: 6 }} />
+            <Send size={14} style={{ marginRight: 6 }} strokeWidth={1.6} />
             {sending ? 'Inoltro...' : 'Inoltra'}
           </button>
         </div>

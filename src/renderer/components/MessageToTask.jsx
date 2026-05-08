@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+﻿import React, { useEffect, useRef, useState } from 'react'
 import { CheckSquare, X, Save } from 'lucide-react'
 
 export default function MessageToTask({ message, anchorRect, onClose, onCreated }) {
@@ -52,10 +52,10 @@ export default function MessageToTask({ message, anchorRect, onClose, onCreated 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-            <CheckSquare size={15} style={{ color: 'var(--accent)' }} /> Crea task
+            <CheckSquare size={15} style={{ color: 'var(--accent)' }} strokeWidth={1.6} /> Crea task
           </div>
           <button className="btn--icon" style={{ width: 24, height: 24 }} onClick={onClose}>
-            <X size={13} />
+            <X size={13} strokeWidth={1.6} />
           </button>
         </div>
 
@@ -105,7 +105,7 @@ export default function MessageToTask({ message, anchorRect, onClose, onCreated 
         {/* Salva */}
         <button className="btn btn--primary" onClick={handleSave} disabled={!title.trim()}
           style={{ width: '100%', height: 34, marginTop: 2 }}>
-          <Save size={14} /> Salva task
+          <Save size={14} strokeWidth={1.6} /> Salva task
         </button>
       </div>
     </>

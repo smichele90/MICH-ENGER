@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { X, Calendar, Bell, Repeat, Save } from 'lucide-react'
 
 export default function TaskCreateModal({ initialData, onClose, onCreated }) {
@@ -35,8 +35,8 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ width: 500 }}>
         <div className="modal__header">
-          <span className="modal__title">Crea Nuovo Task</span>
-          <button className="btn--icon" onClick={onClose}><X size={20} /></button>
+          <span className="modal__title">Crea <em>Nuovo Task</em></span>
+          <button className="btn--icon" onClick={onClose}><X size={20} strokeWidth={1.6} /></button>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -65,7 +65,7 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                <Calendar size={14} /> Scadenza
+                <Calendar size={14} strokeWidth={1.6} /> Scadenza
               </label>
               <input
                 type="datetime-local"
@@ -78,7 +78,7 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
 
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                <Repeat size={14} /> Ricorrenza
+                <Repeat size={14} strokeWidth={1.6} /> Ricorrenza
               </label>
               <select
                 className="sidebar__search-input"
@@ -103,7 +103,7 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
                 onChange={e => setNotify(e.target.checked)}
                 style={{ cursor: 'pointer' }}
               />
-              <Bell size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <Bell size={14} style={{ color: 'var(--text-muted)', pointerEvents: 'none' }} strokeWidth={1.6} />
               <label htmlFor="create-notify-checkbox" style={{ fontSize: 14, fontWeight: 500, cursor: 'pointer', margin: 0 }}>
                 Abilita Notifica
               </label>
@@ -123,7 +123,7 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10 }}>
             <button type="button" className="btn btn--ghost" onClick={onClose}>Annulla</button>
             <button type="submit" className="btn btn--primary">
-              <Save size={16} /> Salva Task
+              <Save size={16} strokeWidth={1.6} /> Salva Task
             </button>
           </div>
         </form>

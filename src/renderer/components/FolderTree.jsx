@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+﻿import React, { useState, useEffect } from 'react'
 import { ChevronDown, Folder, FolderOpen, FolderPlus, Pencil, Trash2, MoreHorizontal, Users } from 'lucide-react'
 import AvatarImage from './AvatarImage'
 
@@ -87,7 +87,7 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
     if (!newSubName.trim()) return
     const result = await window.api.createFolder({ name: newSubName.trim(), parent_id: folder.id })
     if (result?.id) {
-      onFolderAdded?.({ id: result.id, name: newSubName.trim(), parent_id: folder.id, color: '#6C3CE1', icon: 'folder', sort_order: 0 })
+      onFolderAdded?.({ id: result.id, name: newSubName.trim(), parent_id: folder.id, color: '#8b6f47', icon: 'folder', sort_order: 0 })
     }
     setNewSubName('')
     setShowNewSub(false)
@@ -103,11 +103,11 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
         style={{ paddingLeft: 16 + depth * 8 }}
       >
         <span className={`sidebar-item__chevron ${isOpen ? 'sidebar-item__chevron--open' : ''}`} onClick={handleToggle}>
-          <ChevronDown size={14} />
+          <ChevronDown size={14} strokeWidth={1.6} />
         </span>
 
         <div className="sidebar-item__icon" style={{ color: folder.color || 'var(--text-muted)' }}>
-          {isOpen ? <FolderOpen size={16} /> : <Folder size={16} />}
+          {isOpen ? <FolderOpen size={16} strokeWidth={1.6} /> : <Folder size={16} strokeWidth={1.6} />}
         </div>
 
         {isRenaming ? (
@@ -130,7 +130,7 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
           onClick={(e) => { e.stopPropagation(); setShowMenu(!showMenu) }}
           style={{ opacity: showMenu ? 1 : undefined }}
         >
-          <MoreHorizontal size={14} />
+          <MoreHorizontal size={14} strokeWidth={1.6} />
         </button>
       </div>
 
@@ -139,17 +139,17 @@ function FolderNode({ folder, activeFolder, activeContact, onSelect, onSelectCon
           <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setShowMenu(false)} />
           <div className="context-menu" style={{ position: 'absolute', left: 60 + depth * 8, zIndex: 2000 }}>
             <button className="context-menu__item" onClick={() => { setShowNewSub(true); setShowMenu(false); setIsOpen(true) }}>
-              <FolderPlus size={14} /> Nuova sub-cartella
+              <FolderPlus size={14} strokeWidth={1.6} /> Nuova sub-cartella
             </button>
             <button className="context-menu__item" onClick={() => { onManage?.(folder); setShowMenu(false) }}>
-              <Users size={14} /> Gestisci contatti
+              <Users size={14} strokeWidth={1.6} /> Gestisci contatti
             </button>
             <button className="context-menu__item" onClick={() => { setIsRenaming(true); setShowMenu(false) }}>
-              <Pencil size={14} /> Rinomina
+              <Pencil size={14} strokeWidth={1.6} /> Rinomina
             </button>
             <div className="context-menu__divider" />
             <button className="context-menu__item context-menu__item--danger" onClick={handleDelete}>
-              <Trash2 size={14} /> Elimina
+              <Trash2 size={14} strokeWidth={1.6} /> Elimina
             </button>
           </div>
         </>

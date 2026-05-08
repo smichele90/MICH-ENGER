@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+﻿import React, { useState, useEffect, useRef } from 'react'
 import { Search, MessageSquare, CheckSquare, User, Hash, X, Clock, Calendar } from 'lucide-react'
 
 export default function SearchOverlay({ onClose, accountId, onNavigate }) {
@@ -95,7 +95,7 @@ export default function SearchOverlay({ onClose, accountId, onNavigate }) {
     <div className="search-overlay" onClick={onClose}>
       <div className="search-overlay__content" onClick={e => e.stopPropagation()}>
         <div className="search-overlay__input-wrapper">
-          <Search className="search-overlay__icon" size={20} />
+          <Search className="search-overlay__icon" size={20} strokeWidth={1.6} />
           <input
             ref={inputRef}
             type="text"
@@ -116,10 +116,10 @@ export default function SearchOverlay({ onClose, accountId, onNavigate }) {
                 <>
                   <p>Inizia a digitare per cercare...</p>
                   <div className="search-overlay__hints">
-                    <span><Hash size={12} /> Gruppi</span>
-                    <span><User size={12} /> Contatti</span>
-                    <span><CheckSquare size={12} /> Task</span>
-                    <span><MessageSquare size={12} /> Messaggi</span>
+                    <span><Hash size={12} strokeWidth={1.6} /> Gruppi</span>
+                    <span><User size={12} strokeWidth={1.6} /> Contatti</span>
+                    <span><CheckSquare size={12} strokeWidth={1.6} /> Task</span>
+                    <span><MessageSquare size={12} strokeWidth={1.6} /> Messaggi</span>
                   </div>
                 </>
               ) : (
@@ -135,10 +135,10 @@ export default function SearchOverlay({ onClose, accountId, onNavigate }) {
                 onClick={() => handleSelect(item)}
               >
                 <div className="search-overlay__item-icon">
-                  {item.type === 'contact' && <User size={18} />}
-                  {item.type === 'folder' && <Hash size={18} />}
-                  {item.type === 'task' && <CheckSquare size={18} />}
-                  {item.type === 'message' && <MessageSquare size={18} />}
+                  {item.type === 'contact' && <User size={18} strokeWidth={1.6} />}
+                  {item.type === 'folder' && <Hash size={18} strokeWidth={1.6} />}
+                  {item.type === 'task' && <CheckSquare size={18} strokeWidth={1.6} />}
+                  {item.type === 'message' && <MessageSquare size={18} strokeWidth={1.6} />}
                 </div>
                 <div className="search-overlay__item-info">
                   <div className="search-overlay__item-title">

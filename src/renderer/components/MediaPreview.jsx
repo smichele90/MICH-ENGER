@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+﻿import React, { useState } from 'react'
 import { Download, Play, Pause, FileText, FileImage, FileVideo, FileAudio, File as FileIcon, Image as ImageIcon, Video as VideoIcon } from 'lucide-react'
 
 /**
@@ -68,7 +68,7 @@ function ImagePreview({ msg, downloading, onDownload, onPreviewImage }) {
             <span style={{ fontSize: 12 }}>⏳ Scarico…</span>
           ) : (
             <>
-              <Download size={28} color="white" />
+              <Download size={28} color="white" strokeWidth={1.6} />
               <span style={{ fontSize: 12, color: 'white' }}>
                 {msg.media_size ? formatSize(msg.media_size) : 'Scarica'}
               </span>
@@ -94,7 +94,7 @@ function StickerPreview({ msg, downloading, onDownload }) {
   if (fileUrl && !err) return <img src={fileUrl} alt="sticker" onError={() => setErr(true)} style={{ width: 140, height: 140, display: 'block' }} />
   if (msg.media_thumb && !err) return <img src={msg.media_thumb} alt="sticker" onError={() => setErr(true)} style={{ width: 140, height: 140, display: 'block', cursor: 'pointer' }} onClick={() => onDownload(msg.id)} />
   return <button onClick={() => onDownload(msg.id)} disabled={downloading} style={{ ...placeholderBtn, width: 140, height: 140 }}>
-    {downloading ? '⏳' : <Download size={20} />}
+    {downloading ? '⏳' : <Download size={20} strokeWidth={1.6} />}
   </button>
 }
 
@@ -126,7 +126,7 @@ function VideoPreview({ msg, downloading, onDownload, onOpenFile }) {
               <span style={{ fontSize: 12 }}>⏳ Scarico…</span>
             ) : (
               <>
-                <Play size={36} color="white" fill="white" />
+                <Play size={36} color="white" fill="white" strokeWidth={1.6} />
                 <span style={{ fontSize: 12, color: 'white' }}>
                   {msg.media_duration ? formatDuration(msg.media_duration) : ''}
                   {msg.media_size ? ` · ${formatSize(msg.media_size)}` : ''}
@@ -170,7 +170,7 @@ function AudioPreview({ msg, downloading, onDownload }) {
           justifyContent: 'center', cursor: 'pointer', flexShrink: 0
         }}
       >
-        {downloading ? '⏳' : fileUrl ? (playing ? <Pause size={16} /> : <Play size={16} />) : <Download size={16} />}
+        {downloading ? '⏳' : fileUrl ? (playing ? <Pause size={16} strokeWidth={1.6} /> : <Play size={16} strokeWidth={1.6} />) : <Download size={16} strokeWidth={1.6} />}
       </button>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ height: 4, background: 'rgba(255,255,255,0.2)', borderRadius: 2, marginBottom: 4 }}>
@@ -219,7 +219,7 @@ function DocumentPreview({ msg, downloading, onDownload, onOpenFile }) {
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
           {msg.media_size ? formatSize(msg.media_size) : (fileUrl ? 'Salvato' : 'Tocca per scaricare')}
-          {!fileUrl && !downloading && <Download size={11} />}
+          {!fileUrl && !downloading && <Download size={11} strokeWidth={1.6} />}
           {downloading && <span>⏳</span>}
         </div>
       </div>

@@ -1,17 +1,17 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { Plus, Calendar, ExternalLink, Trash2, Repeat, Bell } from 'lucide-react'
 import TaskCreateModal from './TaskCreateModal'
 import TaskDetailModal from './TaskDetailModal'
 import ConfirmDialog from './ConfirmDialog'
 
 const STATUS_COLS = [
-  { key: 'todo',        label: 'Da fare',     color: '#6C3CE1' },
-  { key: 'in_progress', label: 'In corso',    color: '#3b82f6' },
-  { key: 'done',        label: 'Completato',  color: '#10b981' },
-  { key: 'archived',    label: 'Archiviato',  color: '#606080' }
+  { key: 'todo',        label: 'Da fare',     color: '#8b6f47' },
+  { key: 'in_progress', label: 'In corso',    color: '#b8763a' },
+  { key: 'done',        label: 'Completato',  color: '#6b8a5e' },
+  { key: 'archived',    label: 'Archiviato',  color: '#8a7d70' }
 ]
 
-const PRIORITY_COLORS = { high: '#ef4444', medium: '#f59e0b', low: '#3b82f6' }
+const PRIORITY_COLORS = { high: '#9a4f3f', medium: '#b8763a', low: '#6b8a5e' }
 const PRIORITY_LABELS = { high: 'Alta', medium: 'Media', low: 'Bassa' }
 
 export default function TaskView({ accountId, onNavigate }) {
@@ -80,10 +80,10 @@ export default function TaskView({ accountId, onNavigate }) {
     <>
       <div className="main-header">
         <div className="main-header__info">
-          <div className="main-header__name">✅ Task / To-Do</div>
+          <div className="main-header__name">✅ Task <span className="t-sub">/ To-Do</span></div>
         </div>
         <button className="btn btn--primary" onClick={() => setShowCreate(true)}>
-          <Plus size={14} /> Nuovo Task
+          <Plus size={14} strokeWidth={1.6} /> Nuovo Task
         </button>
       </div>
 
@@ -124,7 +124,7 @@ export default function TaskView({ accountId, onNavigate }) {
                     <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{task.title}</span>
                     <button className="btn--icon" style={{ width: 20, height: 20 }}
                       onClick={(e) => handleDelete(task.id, e)}>
-                      <Trash2 size={12} />
+                      <Trash2 size={12} strokeWidth={1.6} />
                     </button>
                   </div>
                   {task.description && (
@@ -143,22 +143,22 @@ export default function TaskView({ accountId, onNavigate }) {
                     )}
                     {task.due_date && (
                       <span style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Calendar size={10} /> {new Date(task.due_date).toLocaleDateString('it-IT')}
+                        <Calendar size={10} strokeWidth={1.6} /> {new Date(task.due_date).toLocaleDateString('it-IT')}
                       </span>
                     )}
                     {task.source_message_id && (
                       <span style={{ fontSize: 10, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <ExternalLink size={10} /> Messaggio
+                        <ExternalLink size={10} strokeWidth={1.6} /> Messaggio
                       </span>
                     )}
                     {task.recurrence_type && task.recurrence_type !== 'once' && (
                       <span style={{ fontSize: 10, color: 'var(--success)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Repeat size={10} /> {task.recurrence_type}
+                        <Repeat size={10} strokeWidth={1.6} /> {task.recurrence_type}
                       </span>
                     )}
                     {task.notify === 1 && (
                       <span style={{ fontSize: 10, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 2 }}>
-                        <Bell size={10} /> Notifica
+                        <Bell size={10} strokeWidth={1.6} /> Notifica
                       </span>
                     )}
                   </div>

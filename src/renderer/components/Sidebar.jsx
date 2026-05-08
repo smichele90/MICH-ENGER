@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+﻿import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Search, FolderPlus, CheckSquare, Clock, MessageSquare, MailCheck, RefreshCw } from 'lucide-react'
 import FolderTree from './FolderTree'
 import AvatarImage from './AvatarImage'
@@ -150,7 +150,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
     try {
       const result = await window.api.createFolder({ name: newFolderName.trim() })
       if (result?.id) {
-        handleFolderAdded({ id: result.id, name: newFolderName.trim(), parent_id: null, color: '#6C3CE1', icon: 'folder', sort_order: 0 })
+        handleFolderAdded({ id: result.id, name: newFolderName.trim(), parent_id: null, color: '#8b6f47', icon: 'folder', sort_order: 0 })
         setNewFolderName('')
         setShowNewFolder(false)
       }
@@ -200,6 +200,8 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
 
   const folderTree = useMemo(() => buildTree(folders), [folders, buildTree])
 
+  const avatarGradientClass = (id) => ['bg-a', 'bg-b', 'bg-c'][(id || 0) % 3]
+
   const refreshFolders = useCallback(async () => {
     setFolders(await window.api.getFolders())
   }, [])
@@ -238,7 +240,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
             onClick={() => onNavigate('chat')}
             title="Chat"
           >
-            <MessageSquare size={20} />
+            <MessageSquare size={20} strokeWidth={1.6} />
             {unreadTotal > 0 && (
               <span className="sidebar-collapse-badge">{unreadTotal > 99 ? '99+' : unreadTotal}</span>
             )}
@@ -248,14 +250,14 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
             onClick={() => onNavigate('tasks')}
             title="Task"
           >
-            <CheckSquare size={20} />
+            <CheckSquare size={20} strokeWidth={1.6} />
           </button>
           <button
             className={`sidebar-collapse-btn ${activeView === 'scheduled' ? 'sidebar-collapse-btn--active' : ''}`}
             onClick={() => onNavigate('scheduled')}
             title="Programmati"
           >
-            <Clock size={20} />
+            <Clock size={20} strokeWidth={1.6} />
           </button>
         </div>
       </div>
@@ -268,7 +270,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
       {/* Ricerca */}
       <div className="sidebar__search">
         <div className="sidebar__search-wrapper">
-          <Search size={14} className="sidebar__search-icon" />
+          <Search size={14} className="sidebar__search-icon" strokeWidth={1.6} />
           <input
             className="sidebar__search-input"
             placeholder="Cerca contatti, messaggi..."
@@ -281,14 +283,14 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
       {/* Tabs navigazione */}
       <div className="nav-tabs">
         <button className={`nav-tab ${activeView === 'chat' ? 'nav-tab--active' : ''}`} onClick={() => onNavigate('chat')}>
-          <MessageSquare size={14} style={{ marginRight: 4 }} /> Chat
+          <MessageSquare size={14} style={{ marginRight: 4 }} strokeWidth={1.6} /> Chat
           {unreadTotal > 0 && <span style={{ marginLeft: 'auto', background: 'var(--accent)', color: 'white', padding: '0 6px', borderRadius: 10, fontSize: 10, fontWeight: 600 }}>{unreadTotal}</span>}
         </button>
         <button className={`nav-tab ${activeView === 'tasks' ? 'nav-tab--active' : ''}`} onClick={() => onNavigate('tasks')}>
-          <CheckSquare size={14} style={{ marginRight: 4 }} /> Task
+          <CheckSquare size={14} style={{ marginRight: 4 }} strokeWidth={1.6} /> Task
         </button>
         <button className={`nav-tab ${activeView === 'scheduled' ? 'nav-tab--active' : ''}`} onClick={() => onNavigate('scheduled')}>
-          <Clock size={14} style={{ marginRight: 4 }} /> Programmati
+          <Clock size={14} style={{ marginRight: 4 }} strokeWidth={1.6} /> Programmati
         </button>
       </div>
 
@@ -313,7 +315,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
           <div className="sidebar-section__header" onClick={() => toggleSection('folders')}>
             <span className="sidebar-section__title">📁 Cartelle</span>
             <button className="sidebar-section__action" onClick={(e) => { e.stopPropagation(); setShowNewFolder(true) }} title="Nuova cartella">
-              <FolderPlus size={14} />
+              <FolderPlus size={14} strokeWidth={1.6} />
             </button>
           </div>
           {showNewFolder && (
@@ -378,7 +380,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                   onClick={e => { e.stopPropagation(); setConfirmReload(true) }}
                   title="Ricarica cronologia"
                 >
-                  <RefreshCw size={14} />
+                  <RefreshCw size={14} strokeWidth={1.6} />
                 </button>
                 <button
                   className="sidebar-section__action"
@@ -386,7 +388,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                   onClick={e => { e.stopPropagation(); setConfirmMarkRead(true) }}
                   title="Segna tutto come letto"
                 >
-                  <MailCheck size={14} />
+                  <MailCheck size={14} strokeWidth={1.6} />
                 </button>
               </div>
             </div>
@@ -399,10 +401,10 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                   onClick={() => onSelectContact(item)}
                   style={{ padding: '10px 16px', minHeight: 68 }}
                 >
-                  <div className="sidebar-item__avatar" style={{
-                    width: 48, height: 48, borderRadius: '50%', background: 'var(--bg-hover)',
+                  <div className={`sidebar-item__avatar av ${avatarGradientClass(item.id)}`} style={{
+                    width: 48, height: 48, borderRadius: '50%',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    fontSize: 14, fontWeight: 600, color: 'var(--text-muted)',
+                    fontSize: 14, fontWeight: 600,
                     overflow: 'hidden'
                   }}>
                     <AvatarImage

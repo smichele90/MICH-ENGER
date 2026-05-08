@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+﻿import React, { useEffect, useState } from 'react'
 import { Users, User } from 'lucide-react'
 
 export default function AvatarImage({ profilePicPath, profilePicUrl, isGroup, className, style }) {
@@ -40,8 +40,8 @@ export default function AvatarImage({ profilePicPath, profilePicUrl, isGroup, cl
       {resolvedSrc ? (
         <img src={resolvedSrc} alt="" onError={handleError} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
-        <div className="avatar-fallback" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-          {isGroup ? <Users size={16} /> : <User size={16} />}
+        <div className="avatar-fallback" style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'inherit' }}>
+          {isGroup ? <Users size={16} strokeWidth={1.6} /> : <User size={16} strokeWidth={1.6} />}
         </div>
       )}
     </div>

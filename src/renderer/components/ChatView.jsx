@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+﻿import React, { useState, useEffect, useRef } from 'react'
 import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, Share2 } from 'lucide-react'
 import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
@@ -535,7 +535,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
                         setTaskPopover({ message: msg, rect })
                       }}
                     >
-                      <CheckSquare size={14} />
+                      <CheckSquare size={14} strokeWidth={1.6} />
                     </button>
                     {msg.wa_serialized_id && (
                       <button
@@ -552,7 +552,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
                         title="Inoltra"
                         onClick={() => setShowForwardModal({ waSerializedId: msg.wa_serialized_id })}
                       >
-                        <Share2 size={14} />
+                        <Share2 size={14} strokeWidth={1.6} />
                       </button>
                     )}
                     {showReactionPicker === msg.wa_serialized_id && (
@@ -591,10 +591,10 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       <div className="chat-input-area">
         <div className="chat-input-actions">
           <button className="chat-input-btn" title="Allegato" onClick={() => handleSelectFile({ properties: ['openFile'] })}>
-            <Paperclip size={18} />
+            <Paperclip size={18} strokeWidth={1.6} />
           </button>
           <button className="chat-input-btn" title="Immagine" onClick={() => handleSelectFile({ properties: ['openFile'], filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }] })}>
-            <Image size={18} />
+            <Image size={18} strokeWidth={1.6} />
           </button>
           <button
             className="chat-input-btn"
@@ -602,7 +602,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
             onClick={recording ? handleStopRecording : handleStartRecording}
             style={recording ? { color: 'var(--accent)' } : undefined}
           >
-            <Mic size={18} />
+            <Mic size={18} strokeWidth={1.6} />
           </button>
         </div>
         {selectedFile && (
@@ -649,9 +649,9 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
             rows={1}
           />
         </div>
-        <button className="chat-input-btn" title="Programma invio" onClick={() => setShowSchedule(true)}><Clock size={18} /></button>
+        <button className="chat-input-btn" title="Programma invio" onClick={() => setShowSchedule(true)}><Clock size={18} strokeWidth={1.6} /></button>
         <button className="chat-send-btn" onClick={handleSend} title="Invia">
-          <Send size={18} />
+          <Send size={18} strokeWidth={1.6} />
         </button>
       </div>
 

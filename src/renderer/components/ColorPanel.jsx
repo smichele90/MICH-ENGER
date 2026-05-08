@@ -1,18 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Palette, RotateCcw, Moon, Sun, X } from 'lucide-react'
 
 const DEFAULTS = {
   dark: {
-    sidebarBg: '#12122a',
-    chatBg: '#1a1a2e',
-    messageSent: '#6C3CE1',
-    messageReceived: '#222244',
+    sidebarBg: '#2a241e',
+    chatBg: '#1a1613',
+    messageSent: '#c89970',
+    messageReceived: '#2a241e',
   },
   light: {
-    sidebarBg: '#ffffff',
-    chatBg: '#f5f5fa',
-    messageSent: '#6C3CE1',
-    messageReceived: '#e8e8f0',
+    sidebarBg: '#fdfaf3',
+    chatBg: '#f3ede2',
+    messageSent: '#8b6f47',
+    messageReceived: '#fdfaf3',
   },
 }
 
@@ -113,7 +113,7 @@ export default function ColorPanel({ theme }) {
         title="Personalizza colori"
         style={isOpen ? { color: 'var(--accent)', background: 'var(--accent-light)' } : undefined}
       >
-        <Palette size={18} />
+        <Palette size={18} strokeWidth={1.6} />
       </button>
 
       {isOpen && (
@@ -121,7 +121,7 @@ export default function ColorPanel({ theme }) {
           <div className="color-panel__header">
             <span className="color-panel__title">Personalizzazione colori</span>
             <button className="color-panel__close" onClick={() => setIsOpen(false)} title="Chiudi">
-              <X size={14} />
+              <X size={14} strokeWidth={1.6} />
             </button>
           </div>
 
@@ -130,7 +130,7 @@ export default function ColorPanel({ theme }) {
               className={`color-panel__tab ${activeTab === 'dark' ? 'color-panel__tab--active' : ''}`}
               onClick={() => setActiveTab('dark')}
             >
-              <Moon size={12} />
+              <Moon size={12} strokeWidth={1.6} />
               Scuro
               {theme === 'dark' && <span className="color-panel__tab-dot" />}
             </button>
@@ -138,7 +138,7 @@ export default function ColorPanel({ theme }) {
               className={`color-panel__tab ${activeTab === 'light' ? 'color-panel__tab--active' : ''}`}
               onClick={() => setActiveTab('light')}
             >
-              <Sun size={12} />
+              <Sun size={12} strokeWidth={1.6} />
               Chiaro
               {theme === 'light' && <span className="color-panel__tab-dot" />}
             </button>
@@ -168,7 +168,7 @@ export default function ColorPanel({ theme }) {
           </div>
 
           <button className="color-panel__reset" onClick={handleReset}>
-            <RotateCcw size={12} />
+            <RotateCcw size={12} strokeWidth={1.6} />
             Ripristina tema {activeTab === 'dark' ? 'scuro' : 'chiaro'}
           </button>
         </div>
