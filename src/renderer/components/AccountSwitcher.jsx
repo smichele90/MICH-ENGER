@@ -10,22 +10,26 @@ function AccountAvatar({ account, initials, color, isActive, onClick, onDelete, 
   return (
     <div
       className={`account-avatar ${isActive ? 'account-avatar--active' : ''} group`}
-      style={{ background: showImg ? 'transparent' : color, position: 'relative', overflow: 'hidden', padding: 0 }}
+      style={{ background: showImg ? 'transparent' : color, position: 'relative', padding: 0 }}
       onClick={onClick}
       title={account.name || account.phone_number || 'Account'}
     >
-      {showImg ? (
-        <img
-          src={account.profile_pic_url}
-          alt=""
-          onError={() => setImgError(true)}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit' }}
-        />
-      ) : (
-        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
-          {initials}
-        </span>
-      )}
+      {/* Contenitore immagine/iniziali con clip separato */}
+      <div style={{ width: '100%', height: '100%', borderRadius: 'inherit', overflow: 'hidden' }}>
+        {showImg ? (
+          <img
+            src={account.profile_pic_url}
+            alt=""
+            onError={() => setImgError(true)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+        ) : (
+          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+            {initials}
+          </span>
+        )}
+      </div>
+      {/* Pallino stato e cestino — sporgono fuori dall'avatar */}
       <span className={`account-avatar__status ${statusClass}`} />
       <button
         className="account-avatar__delete"
