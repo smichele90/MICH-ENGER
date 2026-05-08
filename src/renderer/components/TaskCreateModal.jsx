@@ -1,9 +1,17 @@
 ﻿import React, { useState } from 'react'
-import { X, Calendar, Bell, Repeat, Save } from 'lucide-react'
+import { X, Calendar, Bell, Repeat, Save, Flag } from 'lucide-react'
+
+const PRIORITIES = [
+  { v: '',       label: 'Nessuna' },
+  { v: 'low',    label: 'Bassa'   },
+  { v: 'medium', label: 'Media'   },
+  { v: 'high',   label: 'Alta'    },
+]
 
 export default function TaskCreateModal({ initialData, onClose, onCreated }) {
   const [title, setTitle] = useState(initialData?.title || '')
   const [description, setDescription] = useState(initialData?.description || '')
+  const [priority, setPriority] = useState(initialData?.priority || '')
   const [dueDate, setDueDate] = useState('')
   const [notify, setNotify] = useState(false)
   const [notifyAt, setNotifyAt] = useState('')
@@ -16,7 +24,7 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
         title,
         description,
         status: 'todo',
-        priority: 'medium',
+        priority: priority || null,
         due_date: dueDate || null,
         notify: notify ? 1 : 0,
         notify_at: notifyAt || null,
@@ -62,7 +70,21 @@ export default function TaskCreateModal({ initialData, onClose, onCreated }) {
             />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+                <Flag size={14} strokeWidth={1.6} /> Priorità
+              </label>
+              <select
+                className="sidebar__search-input"
+                style={{ paddingLeft: 12, appearance: 'none' }}
+                value={priority}
+                onChange={e => setPriority(e.target.value)}
+              >
+                {PRIORITIES.map(p => <option key={p.v} value={p.v}>{p.label}</option>)}
+              </select>
+            </div>
+
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
                 <Calendar size={14} strokeWidth={1.6} /> Scadenza
