@@ -31,7 +31,8 @@
     "appId": "com.michenger.app",
     "productName": "MICH-ENGER",
     "files": [
-      "out/**"
+      "out/**",
+      "assets/**"
     ],
     "asarUnpack": [
       "**/*.node",
