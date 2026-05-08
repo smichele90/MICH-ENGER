@@ -538,7 +538,9 @@ body {
   color: var(--text-primary); font-size: 14px; font-family: var(--font);
   resize: none; outline: none; max-height: 120px;
   transition: var(--transition);
+  scrollbar-width: none;
 }
+.chat-input::-webkit-scrollbar { display: none; }
 .chat-input:focus { border-color: var(--accent); }
 .chat-input-actions { display: flex; gap: 4px; }
 .chat-file-preview {
