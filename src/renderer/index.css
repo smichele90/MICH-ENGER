@@ -561,6 +561,23 @@ body {
 }
 .reaction-picker__btn:hover { transform: scale(1.3); }
 
+/* Mention autocomplete */
+.mention-suggestions {
+  position: absolute; bottom: calc(100% + 4px); left: 0;
+  background: var(--bg-modal); border: 1px solid var(--border);
+  border-radius: var(--radius-md); box-shadow: var(--shadow);
+  z-index: 200; min-width: 220px; max-height: 240px; overflow-y: auto;
+  animation: fadeIn 0.1s ease;
+}
+.mention-suggestions__item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; cursor: pointer; transition: var(--transition);
+}
+.mention-suggestions__item:hover,
+.mention-suggestions__item--active { background: var(--bg-hover); }
+.mention-suggestions__name { font-weight: 500; font-size: 13px; color: var(--text-primary); }
+.mention-suggestions__phone { font-size: 11px; color: var(--text-muted); }
+
 /* Chat input */
 .chat-input-area {
   padding: 12px 20px; border-top: 1px solid var(--border);

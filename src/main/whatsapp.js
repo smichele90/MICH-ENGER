@@ -164,6 +164,16 @@ class WhatsAppManager {
           }
         }
 
+        if (options.mentions?.length > 0) {
+          try {
+            sendOptions.mentions = await Promise.all(
+              options.mentions.map(waId => client.getContactById(waId))
+            )
+          } catch (err) {
+            console.warn('[WA] mentions resolution error:', err.message)
+          }
+        }
+
         const msg = await client.sendMessage(contact.whatsapp_id, payload, sendOptions)
         await this.handleIncomingMessage(accountId, msg, { incrementUnread: false, downloadMedia: false })
         return { id: msg.id.id, timestamp: msg.timestamp }
@@ -216,6 +226,24 @@ class WhatsAppManager {
       } catch (err) {
         console.error('[WA] downloadMedia error:', err)
         return { success: false, error: err.message }
+      }
+    })
+
+    ipcMain.handle('wa:getGroupParticipants', async (_, accountId, groupWaId) => {
+      const client = this.clients.get(accountId)
+      if (!client) return []
+      try {
+        const chat = await client.getChatById(groupWaId)
+        if (!chat.isGroup) return []
+        const participantIds = chat.participants.map(p => p.id._serialized)
+        if (participantIds.length === 0) return []
+        const placeholders = participantIds.map(() => '?').join(',')
+        return this.db.prepare(
+          `SELECT * FROM contacts WHERE account_id = ? AND whatsapp_id IN (${placeholders})`
+        ).all(accountId, ...participantIds)
+      } catch (err) {
+        console.error('[WA] getGroupParticipants error:', err.message)
+        return []
       }
     })
   }

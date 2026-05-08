@@ -3,6 +3,19 @@ import { Search, FolderPlus, CheckSquare, Clock, MessageSquare, MailCheck, Refre
 import FolderTree from './FolderTree'
 import AvatarImage from './AvatarImage'
 
+function createBadgeDataURL(count) {
+  const canvas = document.createElement('canvas')
+  canvas.width = 20; canvas.height = 20
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#e53e3e'
+  ctx.beginPath(); ctx.arc(10, 10, 10, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = 'white'
+  ctx.font = 'bold 11px Arial'
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+  ctx.fillText(count > 99 ? '99+' : String(count), 10, 10)
+  return canvas.toDataURL('image/png')
+}
+
 const MEDIA_LABELS = {
   image:    '📷 Foto',
   video:    '🎥 Video',
@@ -206,6 +219,11 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
     [groups]
   )
   const unreadTotal = unreadContacts + unreadGroups
+
+  useEffect(() => {
+    const dataURL = unreadTotal > 0 ? createBadgeDataURL(unreadTotal) : null
+    window.api.setBadge(unreadTotal, dataURL).catch(() => {})
+  }, [unreadTotal])
 
   if (collapsed) {
     return (

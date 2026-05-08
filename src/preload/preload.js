@@ -78,6 +78,8 @@ contextBridge.exposeInMainWorld('api', {
   getReactions: (contactId) => ipcRenderer.invoke('messages:getReactions', contactId),
   reactToMessage: (accountId, waSerializedId, emoji) => ipcRenderer.invoke('wa:reactToMessage', accountId, waSerializedId, emoji),
   forwardMessage: (accountId, waSerializedId, targetContactWaId) => ipcRenderer.invoke('wa:forwardMessage', accountId, waSerializedId, targetContactWaId),
+  getGroupParticipants: (accountId, groupWaId) => ipcRenderer.invoke('wa:getGroupParticipants', accountId, groupWaId),
+  setBadge: (count, dataURL) => ipcRenderer.invoke('app:setBadge', count, dataURL),
 
   // Event listeners (per messaggi WhatsApp in tempo reale)
   onWhatsAppEvent: (channel, callback) => {

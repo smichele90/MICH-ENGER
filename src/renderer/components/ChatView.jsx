@@ -47,6 +47,23 @@ function ReactionPicker({ onReact, onClose }) {
   )
 }
 
+function MentionSuggestions({ suggestions, activeIndex, onSelect }) {
+  return (
+    <div className="mention-suggestions">
+      {suggestions.map((m, i) => (
+        <div
+          key={m.id}
+          className={`mention-suggestions__item ${i === activeIndex ? 'mention-suggestions__item--active' : ''}`}
+          onMouseDown={(e) => { e.preventDefault(); onSelect(m) }}
+        >
+          <span className="mention-suggestions__name">{m.name || m.push_name || m.phone_number}</span>
+          {m.phone_number && <span className="mention-suggestions__phone">{m.phone_number}</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function ChatView({ contact, accountId, highlightMessageId, onHighlightDone }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -61,6 +78,10 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const [reactionsMap, setReactionsMap] = useState(new Map())
   const [showReactionPicker, setShowReactionPicker] = useState(null)
   const [showForwardModal, setShowForwardModal] = useState(null)
+  const [groupMembers, setGroupMembers] = useState([])
+  const [mentionActive, setMentionActive] = useState(false)
+  const [mentionSuggestions, setMentionSuggestions] = useState([])
+  const [mentionIndex, setMentionIndex] = useState(0)
   const mediaRecorderRef = useRef(null)
   const mediaStreamRef = useRef(null)
   const recordingCanceledRef = useRef(false)
@@ -95,6 +116,15 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
 
       // Segna come letto all'apertura
       window.api.markAsRead(accountId, contact.id).catch(() => {})
+
+      // Carica partecipanti gruppo per @mention autocomplete
+      if (contact.is_group && contact.whatsapp_id) {
+        window.api.getGroupParticipants(accountId, contact.whatsapp_id)
+          .then(members => setGroupMembers(members || []))
+          .catch(() => {})
+      } else {
+        setGroupMembers([])
+      }
 
       // Carica reazioni per questa chat
       try {
@@ -167,7 +197,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
     }
   }, [highlightMessageId, messages])
 
-  // Auto-resize textarea
+  // Auto-resize textarea + @mention detection
   const handleInputChange = (e) => {
     setInput(e.target.value)
     const ta = textareaRef.current
@@ -175,6 +205,36 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       ta.style.height = 'auto'
       ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
     }
+    if (contact.is_group && groupMembers.length > 0) {
+      const cursor = e.target.selectionStart
+      const before = e.target.value.slice(0, cursor)
+      const match = before.match(/@([^@\s]*)$/)
+      if (match) {
+        const q = match[1].toLowerCase()
+        const filtered = groupMembers.filter(m => {
+          const name = (m.name || m.push_name || '').toLowerCase()
+          const phone = (m.phone_number || m.whatsapp_id?.split('@')[0] || '').toLowerCase()
+          return name.includes(q) || phone.includes(q)
+        })
+        setMentionSuggestions(filtered.slice(0, 6))
+        setMentionActive(filtered.length > 0)
+        setMentionIndex(0)
+      } else {
+        setMentionActive(false)
+        setMentionSuggestions([])
+      }
+    }
+  }
+
+  const insertMention = (member) => {
+    const phone = member.whatsapp_id.split('@')[0]
+    const cursor = textareaRef.current.selectionStart
+    const before = input.slice(0, cursor).replace(/@[^@\s]*$/, `@${phone} `)
+    const after = input.slice(cursor)
+    setInput(before + after)
+    setMentionActive(false)
+    setMentionSuggestions([])
+    textareaRef.current.focus()
   }
 
   const handleReact = async (msg, emoji) => {
@@ -196,7 +256,16 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
         await sendMediaMessage({ mediaPath: selectedFile.path })
         setSelectedFile(null)
       } else {
-        await window.api.sendMessage(accountId, contact.id, input.trim())
+        const mentionedWaIds = []
+        if (contact.is_group) {
+          for (const m of input.matchAll(/@(\d{7,20})/g)) {
+            const waId = `${m[1]}@c.us`
+            if (!mentionedWaIds.includes(waId)) mentionedWaIds.push(waId)
+          }
+        }
+        await window.api.sendMessage(accountId, contact.id, input.trim(),
+          mentionedWaIds.length > 0 ? { mentions: mentionedWaIds } : undefined
+        )
         setInput('')
         if (textareaRef.current) textareaRef.current.style.height = 'auto'
       }
@@ -207,6 +276,12 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   }
 
   const handleKeyDown = (e) => {
+    if (mentionActive && mentionSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionSuggestions.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionSuggestions[mentionIndex]); return }
+      if (e.key === 'Escape')    { setMentionActive(false); return }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -540,6 +615,13 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
         </div>
       )}
         <div className="chat-input-wrapper">
+          {mentionActive && mentionSuggestions.length > 0 && (
+            <MentionSuggestions
+              suggestions={mentionSuggestions}
+              activeIndex={mentionIndex}
+              onSelect={insertMention}
+            />
+          )}
           <textarea
             ref={textareaRef}
             className="chat-input"

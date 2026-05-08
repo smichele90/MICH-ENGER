@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeTheme, protocol } = require('electron')
+const { app, BrowserWindow, ipcMain, nativeImage, nativeTheme, protocol } = require('electron')
 const path = require('path')
 const { initDatabase, dedupeContacts, cleanSystemContacts } = require('./database')
 const { registerIpcHandlers } = require('./ipc-handlers')
@@ -59,6 +59,20 @@ function createWindow() {
 
   return mainWindow
 }
+
+// Badge icona taskbar/dock
+ipcMain.handle('app:setBadge', (_, count, dataURL) => {
+  if (process.platform === 'darwin') {
+    if (app.dock) app.dock.setBadge(count > 0 ? (count > 99 ? '99+' : String(count)) : '')
+  } else if (process.platform === 'win32') {
+    if (!mainWindow || mainWindow.isDestroyed()) return
+    if (count > 0 && dataURL) {
+      mainWindow.setOverlayIcon(nativeImage.createFromDataURL(dataURL), `${count} non letti`)
+    } else {
+      mainWindow.setOverlayIcon(null, '')
+    }
+  }
+})
 
 // Window controls IPC
 ipcMain.on('window:minimize', () => mainWindow?.minimize())
