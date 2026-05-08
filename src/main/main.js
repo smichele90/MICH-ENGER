@@ -18,10 +18,10 @@ function createWindow() {
     minWidth: 900,
     minHeight: 600,
     title: 'MICH-ENGER',
-    icon: path.join(__dirname, '../../assets/icon.png'),
+    icon: path.join(__dirname, '../../assets/icona.png'),
     frame: false,
     titleBarStyle: 'hidden',
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#f3ede2',
     webPreferences: {
       preload: path.join(__dirname, '../preload/preload.js'),
       contextIsolation: true,

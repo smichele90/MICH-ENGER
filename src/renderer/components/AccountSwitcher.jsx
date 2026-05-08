@@ -1,7 +1,42 @@
-﻿import React from 'react'
+﻿import React, { useState } from 'react'
 import { Plus, Trash2, Volume2, VolumeX } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import ColorPanel from './ColorPanel'
+
+function AccountAvatar({ account, initials, color, isActive, onClick, onDelete, statusClass }) {
+  const [imgError, setImgError] = useState(false)
+  const showImg = account.profile_pic_url && !imgError
+
+  return (
+    <div
+      className={`account-avatar ${isActive ? 'account-avatar--active' : ''} group`}
+      style={{ background: showImg ? 'transparent' : color, position: 'relative', overflow: 'hidden', padding: 0 }}
+      onClick={onClick}
+      title={account.name || account.phone_number || 'Account'}
+    >
+      {showImg ? (
+        <img
+          src={account.profile_pic_url}
+          alt=""
+          onError={() => setImgError(true)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: 'inherit' }}
+        />
+      ) : (
+        <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+          {initials}
+        </span>
+      )}
+      <span className={`account-avatar__status ${statusClass}`} />
+      <button
+        className="account-avatar__delete"
+        onClick={(e) => { e.stopPropagation(); onDelete(account.id) }}
+        title="Elimina account"
+      >
+        <Trash2 size={10} strokeWidth={1.6} />
+      </button>
+    </div>
+  )
+}
 
 const STATUS_CFG = {
   ready:        { color: '#6b8a5e', label: 'Connesso',                              cursor: 'default' },
@@ -41,30 +76,25 @@ export default function AccountSwitcher({ accounts, activeAccount, onSelect, onA
 
   return (
     <div className="account-bar">
-      {accounts.map((account, i) => (
-        <div
-          key={account.id}
-          className={`account-avatar ${activeAccount?.id === account.id ? 'account-avatar--active' : ''} group`}
-          style={{ background: getColor(i), position: 'relative' }}
-          onClick={() => onSelect(account)}
-          title={account.name || account.phone_number || `Account ${i + 1}`}
-        >
-          {getInitials(account)}
-          <span className={`account-avatar__status ${
-            (connectionStatuses?.[account.id] ?? (account.is_active ? 'ready' : 'disconnected')) === 'ready'   ? 'account-avatar__status--online'   :
-            (connectionStatuses?.[account.id]) === 'loading'                                                    ? 'account-avatar__status--loading'  :
-                                                                                                                  'account-avatar__status--offline'
-          }`} />
-          
-          <button 
-            className="account-avatar__delete"
-            onClick={(e) => { e.stopPropagation(); onDelete(account.id) }}
-            title="Elimina account"
-          >
-            <Trash2 size={10} strokeWidth={1.6} />
-          </button>
-        </div>
-      ))}
+      {accounts.map((account, i) => {
+        const status = connectionStatuses?.[account.id] ?? (account.is_active ? 'ready' : 'disconnected')
+        const statusClass =
+          status === 'ready'   ? 'account-avatar__status--online'  :
+          status === 'loading' ? 'account-avatar__status--loading' :
+                                 'account-avatar__status--offline'
+        return (
+          <AccountAvatar
+            key={account.id}
+            account={account}
+            initials={getInitials(account)}
+            color={getColor(i)}
+            isActive={activeAccount?.id === account.id}
+            onClick={() => onSelect(account)}
+            onDelete={onDelete}
+            statusClass={statusClass}
+          />
+        )
+      })}
 
       {accounts.length === 0 && (
         <button className="account-bar__add" onClick={onAdd} title="Collega account WhatsApp">

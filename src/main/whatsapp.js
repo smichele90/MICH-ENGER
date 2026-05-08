@@ -362,7 +362,17 @@ class WhatsAppManager {
       const info = client.info
       this.db.prepare('UPDATE accounts SET phone_number = ?, name = ?, is_active = 1 WHERE id = ?')
         .run(info.wid.user, info.pushname || '', accountId)
-      this.safeSend('wa:ready', { accountId, info: { pushname: info.pushname, wid: info.wid } })
+
+      let profilePicUrl = null
+      try {
+        const ownContact = await client.getContactById(info.wid._serialized)
+        profilePicUrl = await ownContact.getProfilePicUrl() || null
+        if (profilePicUrl) {
+          this.db.prepare('UPDATE accounts SET profile_pic_url = ? WHERE id = ?').run(profilePicUrl, accountId)
+        }
+      } catch {}
+
+      this.safeSend('wa:ready', { accountId, info: { pushname: info.pushname, wid: info.wid, profilePicUrl } })
 
       // Sync una sola volta (lock interno)
       this.runSync(accountId, client).catch(err => console.error('[WA] sync error:', err))

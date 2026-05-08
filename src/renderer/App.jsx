@@ -1,5 +1,6 @@
 ﻿import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { Minus, Square, X, Copy } from 'lucide-react'
+import iconaImg from '../../assets/icona.png'
 import Sidebar from './components/Sidebar'
 import AccountSwitcher from './components/AccountSwitcher'
 import ChatView from './components/ChatView'
@@ -112,7 +113,12 @@ export default function App() {
   useEffect(() => {
     const set = (accountId, status) =>
       setConnectionStatuses(prev => ({ ...prev, [accountId]: status }))
-    const offReady   = window.api.onWhatsAppEvent('wa:ready',       ({ accountId }) => set(accountId, 'ready'))
+    const offReady   = window.api.onWhatsAppEvent('wa:ready',       ({ accountId, info }) => {
+      set(accountId, 'ready')
+      if (info?.profilePicUrl) {
+        setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, profile_pic_url: info.profilePicUrl } : a))
+      }
+    })
     const offLoading = window.api.onWhatsAppEvent('wa:loading',     ({ accountId }) =>
       setConnectionStatuses(prev => prev[accountId] === 'ready' ? prev : { ...prev, [accountId]: 'loading' }))
     const offDisc    = window.api.onWhatsAppEvent('wa:disconnected', ({ accountId }) => set(accountId, 'disconnected'))
@@ -217,7 +223,9 @@ export default function App() {
         }
         return (
           <div className="empty-state">
-            <div className="empty-state__icon">💬</div>
+            <div className="empty-state__icon">
+              <img src={iconaImg} alt="MICH-ENGER" style={{ width: 80, height: 80, opacity: 0.25 }} />
+            </div>
             <div className="empty-state__title">MICH-ENGER</div>
             <div className="empty-state__text">
               Seleziona un contatto o un gruppo dalla sidebar per iniziare una conversazione.
