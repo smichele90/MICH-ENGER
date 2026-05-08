@@ -111,6 +111,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   }
   const chatEndRef = useRef(null)
   const textareaRef = useRef(null)
+  const pendingMentionIdsRef = useRef([])
 
   // Carica messaggi
   useEffect(() => {
@@ -234,11 +235,12 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   }
 
   const insertMention = (member) => {
-    const phone = member.whatsapp_id.split('@')[0]
+    const displayName = member.name || member.push_name || member.whatsapp_id.split('@')[0]
     const cursor = textareaRef.current.selectionStart
-    const before = input.slice(0, cursor).replace(/@[^@\s]*$/, `@${phone} `)
+    const before = input.slice(0, cursor).replace(/@[^@\s]*$/, `@${displayName} `)
     const after = input.slice(cursor)
     setInput(before + after)
+    pendingMentionIdsRef.current.push(member.whatsapp_id)
     setMentionActive(false)
     setMentionSuggestions([])
     textareaRef.current.focus()
@@ -263,17 +265,14 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
         await sendMediaMessage({ mediaPath: selectedFile.path })
         setSelectedFile(null)
       } else {
-        const mentionedWaIds = []
-        if (contact.is_group) {
-          for (const m of input.matchAll(/@(\d{7,20})/g)) {
-            const waId = `${m[1]}@c.us`
-            if (!mentionedWaIds.includes(waId)) mentionedWaIds.push(waId)
-          }
-        }
+        const mentionedWaIds = contact.is_group
+          ? [...new Set(pendingMentionIdsRef.current)]
+          : []
         await window.api.sendMessage(accountId, contact.id, input.trim(),
           mentionedWaIds.length > 0 ? { mentions: mentionedWaIds } : undefined
         )
         setInput('')
+        pendingMentionIdsRef.current = []
         if (textareaRef.current) textareaRef.current.style.height = 'auto'
       }
     } catch (err) {

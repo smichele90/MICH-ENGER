@@ -198,6 +198,9 @@ function createTables() {
     CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
   `)
 
+  // Migrazione: aggiunge colonne introdotte dopo la creazione iniziale dello schema
+  try { db.exec("ALTER TABLE scheduled_messages ADD COLUMN mentions_json TEXT DEFAULT NULL") } catch (_) {}
+
   // Inserisci impostazioni di default se non esistono
   const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')
   insertSetting.run('theme', 'dark')

@@ -281,7 +281,17 @@ class WhatsAppManager {
         targets = members.map(m => m.whatsapp_id)
       }
       for (const waId of targets) {
-        await client.sendMessage(waId, msg.body)
+        if (msg.mentions_json) {
+          try {
+            const ids = JSON.parse(msg.mentions_json)
+            const mentionContacts = (await Promise.all(ids.map(id => client.getContactById(id).catch(() => null)))).filter(Boolean)
+            await client.sendMessage(waId, msg.body, { mentions: mentionContacts })
+          } catch {
+            await client.sendMessage(waId, msg.body)
+          }
+        } else {
+          await client.sendMessage(waId, msg.body)
+        }
         await new Promise(r => setTimeout(r, 800))
       }
       return true

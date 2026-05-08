@@ -101,11 +101,34 @@ function SearchableSelect({ value, options, placeholder, onChange }) {
   )
 }
 
+function MentionSuggestions({ suggestions, activeIndex, onSelect }) {
+  return (
+    <div className="mention-suggestions">
+      {suggestions.map((m, i) => (
+        <div
+          key={m.id}
+          className={`mention-suggestions__item ${i === activeIndex ? 'mention-suggestions__item--active' : ''}`}
+          onMouseDown={(e) => { e.preventDefault(); onSelect(m) }}
+        >
+          <span className="mention-suggestions__name">{m.name || m.push_name || m.phone_number}</span>
+          {m.phone_number && <span className="mention-suggestions__phone">{m.phone_number}</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function ScheduleMessageModal({ accountId, initialContact, editing, onClose, onSaved }) {
   const [contacts, setContacts] = useState([])
   const [folders, setFolders] = useState([])
   const [folderCounts, setFolderCounts] = useState({})
   const [formError, setFormError] = useState('')
+  const [groupMembers, setGroupMembers] = useState([])
+  const [mentionSuggestions, setMentionSuggestions] = useState([])
+  const [mentionActive, setMentionActive] = useState(false)
+  const [mentionIndex, setMentionIndex] = useState(0)
+  const msgTextareaRef = useRef(null)
+  const pendingMentionIdsRef = useRef(editing?.mentions_json ? JSON.parse(editing.mentions_json) : [])
 
   const [form, setForm] = useState(() => ({
     target_type: editing?.target_type || (initialContact ? (initialContact.is_group ? 'group' : 'contact') : 'contact'),
@@ -133,6 +156,23 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     })()
   }, [accountId])
 
+  useEffect(() => {
+    if (form.target_type === 'group' && form.target_id && accountId) {
+      const grp = contacts.find(c => String(c.id) === String(form.target_id))
+      if (grp?.whatsapp_id) {
+        window.api.getGroupParticipants(accountId, grp.whatsapp_id)
+          .then(members => setGroupMembers(members || []))
+          .catch(() => setGroupMembers([]))
+      } else {
+        setGroupMembers([])
+      }
+    } else {
+      setGroupMembers([])
+      setMentionActive(false)
+      setMentionSuggestions([])
+    }
+  }, [form.target_type, form.target_id, accountId, contacts])
+
   const targetList = useMemo(() => {
     if (form.target_type === 'folder') {
       return folders.map(f => ({ id: f.id, name: f.name, hint: `${folderCounts[f.id] ?? 0} contatti` }))
@@ -156,6 +196,51 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     return new Date(form.scheduled_at) < new Date()
   }, [form.scheduled_at])
 
+  const handleBodyChange = (e) => {
+    const val = e.target.value
+    setForm(f => ({ ...f, body: val }))
+    if (form.target_type === 'group' && groupMembers.length > 0) {
+      const cursor = e.target.selectionStart
+      const before = val.slice(0, cursor)
+      const match = before.match(/@([^@\s]*)$/)
+      if (match) {
+        const q = match[1].toLowerCase()
+        const filtered = groupMembers.filter(m => {
+          const name = (m.name || m.push_name || '').toLowerCase()
+          const phone = (m.phone_number || m.whatsapp_id?.split('@')[0] || '').toLowerCase()
+          return name.includes(q) || phone.includes(q)
+        })
+        setMentionSuggestions(filtered.slice(0, 6))
+        setMentionActive(filtered.length > 0)
+        setMentionIndex(0)
+      } else {
+        setMentionActive(false)
+        setMentionSuggestions([])
+      }
+    }
+  }
+
+  const insertMention = (member) => {
+    const displayName = member.name || member.push_name || member.whatsapp_id.split('@')[0]
+    const cursor = msgTextareaRef.current.selectionStart
+    const before = form.body.slice(0, cursor).replace(/@[^@\s]*$/, `@${displayName} `)
+    const after = form.body.slice(cursor)
+    setForm(f => ({ ...f, body: before + after }))
+    pendingMentionIdsRef.current.push(member.whatsapp_id)
+    setMentionActive(false)
+    setMentionSuggestions([])
+    msgTextareaRef.current.focus()
+  }
+
+  const handleBodyKeyDown = (e) => {
+    if (mentionActive && mentionSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIndex(i => Math.min(i + 1, mentionSuggestions.length - 1)); return }
+      if (e.key === 'ArrowUp')   { e.preventDefault(); setMentionIndex(i => Math.max(i - 1, 0)); return }
+      if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); insertMention(mentionSuggestions[mentionIndex]); return }
+      if (e.key === 'Escape')    { setMentionActive(false); return }
+    }
+  }
+
   const handleSave = async () => {
     if (!isValid) return
     const targetIdNum = parseInt(form.target_id, 10)
@@ -178,7 +263,10 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
       scheduled_at: dt.toISOString(),
       next_send_at: dt.toISOString(),
       recurrence_type: form.recurrence_type,
-      recurrence_rule: form.recurrence_type === 'custom' ? form.recurrence_rule : null
+      recurrence_rule: form.recurrence_type === 'custom' ? form.recurrence_rule : null,
+      mentions_json: form.target_type === 'group' && pendingMentionIdsRef.current.length > 0
+        ? JSON.stringify([...new Set(pendingMentionIdsRef.current)])
+        : null
     }
     if (editing?.id) {
       await window.api.updateScheduled(editing.id, payload)
@@ -237,9 +325,19 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
 
           {/* Body */}
           <div>
-            <label style={lblStyle}>Messaggio</label>
-            <textarea className="chat-input" rows={5} placeholder="Scrivi il messaggio..."
-              value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} />
+            <label style={lblStyle}>Messaggio{form.target_type === 'group' && groupMembers.length > 0 && <span style={{ marginLeft: 6, opacity: 0.6 }}>· digita @ per menzionare</span>}</label>
+            <div style={{ position: 'relative' }}>
+              {mentionActive && <MentionSuggestions suggestions={mentionSuggestions} activeIndex={mentionIndex} onSelect={insertMention} />}
+              <textarea
+                ref={msgTextareaRef}
+                className="chat-input"
+                rows={5}
+                placeholder="Scrivi il messaggio..."
+                value={form.body}
+                onChange={handleBodyChange}
+                onKeyDown={handleBodyKeyDown}
+              />
+            </div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
               {form.body.length} caratteri
             </div>
