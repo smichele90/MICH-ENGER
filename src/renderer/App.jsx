@@ -224,7 +224,7 @@ export default function App() {
         return (
           <div className="empty-state">
             <div className="empty-state__icon">
-              <img src={iconaImg} alt="MICH-ENGER" style={{ width: 80, height: 80, opacity: 0.25, borderRadius: 18 }} />
+              <img src={iconaImg} alt="MICH-ENGER" style={{ width: 80, height: 80, opacity: 0.75, borderRadius: 18 }} />
             </div>
             <div className="empty-state__title">MICH-ENGER</div>
             <div className="empty-state__text">
