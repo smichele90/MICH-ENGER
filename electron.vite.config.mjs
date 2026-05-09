@@ -15,6 +15,7 @@ export default defineConfig({
           whatsapp: resolve(__dirname, 'src/main/whatsapp.js'),
           scheduler: resolve(__dirname, 'src/main/scheduler.js'),
           'notification-manager': resolve(__dirname, 'src/main/notification-manager.js'),
+          'audio-transcode': resolve(__dirname, 'src/main/audio-transcode.js'),
         }
       }
     }
