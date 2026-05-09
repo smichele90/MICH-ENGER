@@ -149,18 +149,34 @@ class WhatsAppManager {
           sendOptions.caption = options.caption
         }
 
+        const isAudioMime = (m) => typeof m === 'string' && m.toLowerCase().startsWith('audio/')
+        const isAudioExt = (p) => /\.(ogg|opus|mp3|m4a|wav|webm|aac)$/i.test(p || '')
+
         if (options.mediaPath || options.mediaData) {
           if (options.mediaPath) {
             if (!fs.existsSync(options.mediaPath)) {
               throw new Error(`File non trovato: ${options.mediaPath}`)
             }
-            payload = MessageMedia.fromFilePath(options.mediaPath)
+            if (isAudioExt(options.mediaPath) || isAudioMime(options.mediaMime)) {
+              const base64 = fs.readFileSync(options.mediaPath).toString('base64')
+              const baseName = path.basename(options.mediaPath, path.extname(options.mediaPath)) + '.ogg'
+              payload = new MessageMedia('audio/ogg; codecs=opus', base64, baseName)
+              sendOptions.sendAudioAsVoice = true
+            } else {
+              payload = MessageMedia.fromFilePath(options.mediaPath)
+            }
           } else {
             if (!options.mediaMime || !options.mediaData) {
               throw new Error('Dati media incompleti')
             }
-            const filename = options.filename || `file.${options.mediaMime.split('/')[1] || 'bin'}`
-            payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
+            if (isAudioMime(options.mediaMime)) {
+              const filename = (options.filename ? options.filename.replace(/\.[^.]+$/, '') : 'audio') + '.ogg'
+              payload = new MessageMedia('audio/ogg; codecs=opus', options.mediaData, filename)
+              sendOptions.sendAudioAsVoice = true
+            } else {
+              const filename = options.filename || `file.${options.mediaMime.split('/')[1] || 'bin'}`
+              payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
+            }
           }
         }
 
@@ -280,33 +296,58 @@ class WhatsAppManager {
         ).all(msg.target_id)
         targets = members.map(m => m.whatsapp_id)
       }
+      // Risolvi mentions una volta sola (riutilizzate per ogni target)
+      let mentionContacts = null
+      if (msg.mentions_json) {
+        try {
+          const ids = JSON.parse(msg.mentions_json)
+          mentionContacts = (await Promise.all(ids.map(id => client.getContactById(id).catch(() => null)))).filter(Boolean)
+        } catch {}
+      }
+
+      // Parsa lista allegati multipli; fallback a media_path singolo per retrocompat
+      let attachments = []
+      if (msg.media_paths_json) {
+        try {
+          const arr = JSON.parse(msg.media_paths_json)
+          if (Array.isArray(arr)) attachments = arr.filter(a => a && a.path)
+        } catch {}
+      }
+      if (attachments.length === 0 && msg.media_path) {
+        attachments = [{ path: msg.media_path }]
+      }
+
+      const isAudioExt = (p) => /\.(ogg|opus|mp3|m4a|wav|webm|aac)$/i.test(p || '')
+
       for (const waId of targets) {
-        if (msg.media_path) {
-          const exists = fs.existsSync(msg.media_path)
-          console.log(`[WA] scheduled media_path="${msg.media_path}" exists=${exists}`)
-          if (!exists) console.warn(`[WA] File non trovato: ${msg.media_path}`)
-        }
-        if (msg.media_path && fs.existsSync(msg.media_path)) {
-          const media = MessageMedia.fromFilePath(msg.media_path)
-          console.log(`[WA] invio media mime=${media.mimetype} size=${media.data?.length}`)
-          const opts = {}
-          if (msg.body) opts.caption = msg.body
-          if (msg.mentions_json) {
-            try {
-              const ids = JSON.parse(msg.mentions_json)
-              opts.mentions = (await Promise.all(ids.map(id => client.getContactById(id).catch(() => null)))).filter(Boolean)
-            } catch {}
+        if (attachments.length > 0) {
+          for (let i = 0; i < attachments.length; i++) {
+            const att = attachments[i]
+            const exists = fs.existsSync(att.path)
+            console.log(`[WA] scheduled attachment[${i}]="${att.path}" exists=${exists}`)
+            if (!exists) { console.warn(`[WA] File non trovato: ${att.path}`); continue }
+
+            let media
+            const opts = {}
+            if (isAudioExt(att.path) || (att.type && att.type === 'audio')) {
+              const base64 = fs.readFileSync(att.path).toString('base64')
+              const baseName = path.basename(att.path, path.extname(att.path)) + '.ogg'
+              media = new MessageMedia('audio/ogg; codecs=opus', base64, baseName)
+              opts.sendAudioAsVoice = true
+            } else {
+              media = MessageMedia.fromFilePath(att.path)
+            }
+            // Caption + mentions solo sul primo allegato
+            if (i === 0) {
+              if (msg.body) opts.caption = msg.body
+              if (mentionContacts) opts.mentions = mentionContacts
+            }
+            await client.sendMessage(waId, media, opts)
+            console.log(`[WA] media[${i}] inviato a ${waId}`)
+            await new Promise(r => setTimeout(r, 400))
           }
-          await client.sendMessage(waId, media, opts)
-          console.log(`[WA] media inviato a ${waId}`)
-        } else if (msg.mentions_json) {
-          try {
-            const ids = JSON.parse(msg.mentions_json)
-            const mentionContacts = (await Promise.all(ids.map(id => client.getContactById(id).catch(() => null)))).filter(Boolean)
-            await client.sendMessage(waId, msg.body, { mentions: mentionContacts })
-          } catch {
-            await client.sendMessage(waId, msg.body)
-          }
+        } else if (mentionContacts) {
+          await client.sendMessage(waId, msg.body, { mentions: mentionContacts })
         } else {
           await client.sendMessage(waId, msg.body)
         }

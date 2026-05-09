@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('api', {
   updateScheduled: (id, data) => ipcRenderer.invoke('scheduled:update', id, data),
   deleteScheduled: (id) => ipcRenderer.invoke('scheduled:delete', id),
   pickMediaFile: () => ipcRenderer.invoke('media:pickFile'),
+  pickMediaFiles: () => ipcRenderer.invoke('media:pickFiles'),
   saveRecording: (uint8array) => ipcRenderer.invoke('media:saveRecording', uint8array),
 
   // Tasks

@@ -1,5 +1,5 @@
 ﻿import React, { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, Share2, X } from 'lucide-react'
+import { Send, Paperclip, Image, Mic, Clock, CheckSquare, User, Users, Share2, X, Square } from 'lucide-react'
 import MessageToTask from './MessageToTask'
 import ScheduleMessageModal from './ScheduleMessageModal'
 import MediaPreview from './MediaPreview'
@@ -72,7 +72,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const [showSchedule, setShowSchedule] = useState(false)
   const [previewImage, setPreviewImage] = useState(null)
   const [downloadingMedia, setDownloadingMedia] = useState(new Set())
-  const [selectedFile, setSelectedFile] = useState(null)
+  const [selectedFiles, setSelectedFiles] = useState([])
   const [recording, setRecording] = useState(false)
   const [recordingStatus, setRecordingStatus] = useState('')
   const [reactionsMap, setReactionsMap] = useState(new Map())
@@ -258,12 +258,21 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
 
   // Invia messaggio
   const handleSend = async () => {
-    if (!input.trim() && !selectedFile) return
+    if (!input.trim() && selectedFiles.length === 0) return
 
     try {
-      if (selectedFile) {
-        await sendMediaMessage({ mediaPath: selectedFile.path })
-        setSelectedFile(null)
+      if (selectedFiles.length > 0) {
+        const text = input.trim()
+        for (let i = 0; i < selectedFiles.length; i++) {
+          const f = selectedFiles[i]
+          await sendMediaMessage({
+            mediaPath: f.path,
+            caption: i === 0 ? text : undefined
+          })
+        }
+        setSelectedFiles([])
+        setInput('')
+        if (textareaRef.current) textareaRef.current.style.height = 'auto'
       } else {
         const mentionedWaIds = contact.is_group
           ? [...new Set(pendingMentionIdsRef.current)]
@@ -320,19 +329,17 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
     }
   }
 
-  const sendMediaMessage = async ({ mediaPath, mediaData, mediaMime, filename }) => {
+  const sendMediaMessage = async ({ mediaPath, mediaData, mediaMime, filename, caption }) => {
     if (!contact?.id) return
     try {
       setLoading(true)
-      await window.api.sendMessage(accountId, contact.id, input.trim() || '', {
-        caption: input.trim() || undefined,
+      await window.api.sendMessage(accountId, contact.id, caption || '', {
+        caption: caption || undefined,
         mediaPath,
         mediaData,
         mediaMime,
         filename
       })
-      setInput('')
-      if (textareaRef.current) textareaRef.current.style.height = 'auto'
     } catch (err) {
       console.error('Errore invio media:', err)
       setChatError('Errore invio allegato: riprova tra qualche istante.')
@@ -351,17 +358,21 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
 
   const handleSelectFile = async (options) => {
     try {
-      const result = await window.api.selectFile(options)
+      const baseProps = options?.properties || ['openFile']
+      const properties = baseProps.includes('multiSelections') ? baseProps : [...baseProps, 'multiSelections']
+      const result = await window.api.selectFile({ ...options, properties })
       if (result?.canceled || !result?.filePaths?.length) return
-      const filePath = result.filePaths[0]
-      const info = await window.api.getFileInfo(filePath)
-      setSelectedFile({
-        path: filePath,
-        name: getFileName(filePath),
-        isImage: isImageFile(filePath),
-        size: info?.size ?? null,
-        mime: info?.mime ?? null
-      })
+      const items = await Promise.all(result.filePaths.map(async (p) => {
+        const info = await window.api.getFileInfo(p)
+        return {
+          path: p,
+          name: getFileName(p),
+          isImage: isImageFile(p),
+          size: info?.size ?? null,
+          mime: info?.mime ?? null
+        }
+      }))
+      setSelectedFiles(prev => [...prev, ...items])
     } catch (err) {
       console.error('Errore selezione file:', err)
       setChatError('Impossibile selezionare il file.')
@@ -371,7 +382,12 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream)
+      const preferredMime = MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')
+        ? 'audio/ogg; codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/webm; codecs=opus')
+          ? 'audio/webm; codecs=opus'
+          : ''
+      const recorder = preferredMime ? new MediaRecorder(stream, { mimeType: preferredMime }) : new MediaRecorder(stream)
       const chunks = []
 
       recorder.addEventListener('dataavailable', (event) => {
@@ -390,12 +406,12 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
           setRecordingStatus('')
           return
         }
-        const blob = new Blob(chunks, { type: 'audio/webm' })
+        const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
         const base64 = await getBase64FromBlob(blob)
         await sendMediaMessage({
           mediaData: base64,
-          mediaMime: blob.type,
-          filename: `audio-${Date.now()}.webm`
+          mediaMime: 'audio/ogg; codecs=opus',
+          filename: `audio-${Date.now()}.ogg`
         })
         setRecording(false)
         setRecordingStatus('')
@@ -589,46 +605,50 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
 
       {/* Input messaggio */}
       <div className="chat-input-area">
-        <div className="chat-input-actions">
-          <button className="chat-input-btn" title="Allegato" onClick={() => handleSelectFile({ properties: ['openFile'] })}>
-            <Paperclip size={18} strokeWidth={1.6} />
-          </button>
-          <button className="chat-input-btn" title="Immagine" onClick={() => handleSelectFile({ properties: ['openFile'], filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }] })}>
-            <Image size={18} strokeWidth={1.6} />
-          </button>
-          <button
-            className="chat-input-btn"
-            title={recording ? 'Ferma registrazione' : 'Audio'}
-            onClick={recording ? handleStopRecording : handleStartRecording}
-            style={recording ? { color: 'var(--accent)' } : undefined}
-          >
-            <Mic size={18} strokeWidth={1.6} />
-          </button>
-        </div>
-      {recording && (
-        <div className="chat-recording-indicator" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', color: 'var(--accent)', fontSize: 13 }}>
-          <span>Registrazione in corso</span>
-          <span>{recordingStatus}</span>
-          <button className="chat-input-btn" title="Annulla" onClick={handleCancelRecording} style={{ color: 'var(--text-danger)' }}>✕</button>
-        </div>
-      )}
+        {recording ? (
+          <div className="chat-input-actions">
+            <button className="btn btn--primary" onClick={handleStopRecording} title="Ferma e invia">
+              <Square size={14} fill="currentColor" />
+              <span style={{ marginLeft: 6 }}>{recordingStatus || '00:00'}</span>
+            </button>
+            <button className="chat-input-btn" onClick={handleCancelRecording} title="Annulla registrazione" style={{ color: 'var(--text-danger)' }}>
+              <X size={16} />
+            </button>
+          </div>
+        ) : (
+          <div className="chat-input-actions">
+            <button className="chat-input-btn" title="Allegato" onClick={() => handleSelectFile({ properties: ['openFile'] })}>
+              <Paperclip size={18} strokeWidth={1.6} />
+            </button>
+            <button className="chat-input-btn" title="Immagine" onClick={() => handleSelectFile({ properties: ['openFile'], filters: [{ name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] }] })}>
+              <Image size={18} strokeWidth={1.6} />
+            </button>
+            <button
+              className="chat-input-btn"
+              title="Audio"
+              onClick={handleStartRecording}
+            >
+              <Mic size={18} strokeWidth={1.6} />
+            </button>
+          </div>
+        )}
         <div className="chat-input-main">
-          {selectedFile && (
-            <div className="chat-file-chip">
+          {selectedFiles.map((file, idx) => (
+            <div className="chat-file-chip" key={`${file.path}-${idx}`}>
               <div className="chat-file-chip__icon">
-                {selectedFile.isImage
+                {file.isImage
                   ? <Image size={14} strokeWidth={2} />
                   : <Paperclip size={14} strokeWidth={2} />}
               </div>
               <span className="chat-file-chip__name">
-                {selectedFile.name.length > 30 ? selectedFile.name.slice(0, 28) + '…' : selectedFile.name}
+                {file.name.length > 30 ? file.name.slice(0, 28) + '…' : file.name}
               </span>
-              {selectedFile.size ? <span className="chat-file-chip__size">{formatBytes(selectedFile.size)}</span> : null}
-              <button className="chat-file-chip__remove" type="button" title="Rimuovi" onClick={() => setSelectedFile(null)}>
+              {file.size ? <span className="chat-file-chip__size">{formatBytes(file.size)}</span> : null}
+              <button className="chat-file-chip__remove" type="button" title="Rimuovi" onClick={() => setSelectedFiles(prev => prev.filter((_, i) => i !== idx))}>
                 <X size={13} strokeWidth={2.5} />
               </button>
             </div>
-          )}
+          ))}
           <div className="chat-input-wrapper">
             {mentionActive && mentionSuggestions.length > 0 && (
               <MentionSuggestions

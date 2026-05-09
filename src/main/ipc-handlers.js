@@ -9,7 +9,7 @@ const ALLOWED_COLUMNS = {
   folders:   new Set(['name', 'parent_id', 'color', 'icon', 'sort_order']),
   scheduled: new Set(['body', 'scheduled_at', 'recurrence_type', 'recurrence_rule',
                       'is_active', 'next_send_at', 'last_sent_at', 'target_name',
-                      'media_type', 'media_path', 'mentions_json']),
+                      'media_type', 'media_path', 'mentions_json', 'media_paths_json']),
   tasks:     new Set(['title', 'description', 'status', 'priority', 'due_date',
                       'notify', 'notify_at', 'recurrence_type', 'recurrence_rule']),
 }
@@ -241,10 +241,10 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     return db.prepare('SELECT * FROM scheduled_messages WHERE account_id = ? ORDER BY next_send_at').all(accountId)
   })
   ipcMain.handle('scheduled:create', (_, data) => {
-    const result = db.prepare(`INSERT INTO scheduled_messages (account_id, target_type, target_id, target_name, body, media_type, media_path, scheduled_at, recurrence_type, recurrence_rule, next_send_at, mentions_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    const result = db.prepare(`INSERT INTO scheduled_messages (account_id, target_type, target_id, target_name, body, media_type, media_path, scheduled_at, recurrence_type, recurrence_rule, next_send_at, mentions_json, media_paths_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
       .run(data.account_id, data.target_type, data.target_id, data.target_name || '', data.body || '', data.media_type || 'text',
-        data.media_path || null, data.scheduled_at, data.recurrence_type || 'once', data.recurrence_rule || null, data.next_send_at || data.scheduled_at, data.mentions_json || null)
+        data.media_path || null, data.scheduled_at, data.recurrence_type || 'once', data.recurrence_rule || null, data.next_send_at || data.scheduled_at, data.mentions_json || null, data.media_paths_json || null)
     
     const newMsg = db.prepare('SELECT * FROM scheduled_messages WHERE id = ?').get(result.lastInsertRowid)
     if (scheduler) scheduler.scheduleOne(newMsg)
@@ -294,6 +294,23 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     })
     if (result.canceled || result.filePaths.length === 0) return null
     return result.filePaths[0]
+  })
+
+  ipcMain.handle('media:pickFiles', async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender)
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Seleziona file da allegare',
+      defaultPath: app.getPath('home'),
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Immagini', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp'] },
+        { name: 'Video',    extensions: ['mp4', 'mov', 'avi', 'mkv', 'webm'] },
+        { name: 'Audio',    extensions: ['mp3', 'ogg', 'wav', 'm4a', 'opus'] },
+        { name: 'Documenti', extensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip'] },
+        { name: 'Tutti i file', extensions: ['*'] }
+      ]
+    })
+    return { canceled: !!result.canceled, filePaths: result.filePaths || [] }
   })
 
   ipcMain.handle('media:saveRecording', async (_, uint8array) => {

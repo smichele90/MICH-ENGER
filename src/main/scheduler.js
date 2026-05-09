@@ -78,8 +78,20 @@ class Scheduler {
     }
 
     if (msg.recurrence_type === 'once') {
-      if (ok && msg.media_path) {
-        try { fs.unlinkSync(path.resolve(msg.media_path)) } catch {}
+      if (ok) {
+        const toUnlink = []
+        if (msg.media_paths_json) {
+          try {
+            const arr = JSON.parse(msg.media_paths_json)
+            if (Array.isArray(arr)) {
+              for (const a of arr) if (a && a.path) toUnlink.push(a.path)
+            }
+          } catch {}
+        }
+        if (toUnlink.length === 0 && msg.media_path) toUnlink.push(msg.media_path)
+        for (const p of toUnlink) {
+          try { fs.unlinkSync(path.resolve(p)) } catch {}
+        }
       }
       this.db.prepare('DELETE FROM scheduled_messages WHERE id = ?').run(id)
       this.jobs.delete(id)

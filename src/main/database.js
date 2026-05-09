@@ -138,6 +138,7 @@ function createTables() {
       body TEXT DEFAULT '',
       media_type TEXT DEFAULT 'text',
       media_path TEXT,
+      media_paths_json TEXT,
       scheduled_at TEXT,
       recurrence_type TEXT DEFAULT 'once' CHECK(recurrence_type IN ('once', 'daily', 'weekly', 'monthly', 'custom')),
       recurrence_rule TEXT,
@@ -201,6 +202,7 @@ function createTables() {
 
   // Migrazione: aggiunge colonne introdotte dopo la creazione iniziale dello schema
   try { db.exec("ALTER TABLE scheduled_messages ADD COLUMN mentions_json TEXT DEFAULT NULL") } catch (_) {}
+  try { db.exec("ALTER TABLE scheduled_messages ADD COLUMN media_paths_json TEXT DEFAULT NULL") } catch (_) {}
 
   // Inserisci impostazioni di default se non esistono
   const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)')

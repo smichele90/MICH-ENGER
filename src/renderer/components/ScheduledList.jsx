@@ -106,13 +106,28 @@ export default function ScheduledList({ accountId }) {
                 </div>
 
                 <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 100, overflow: 'hidden' }}>
-                  {msg.media_path && (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, marginBottom: msg.body ? 4 : 0 }}>
-                      <Paperclip size={12} strokeWidth={1.6} />
-                      {msg.media_path.split(/[\\/]/).pop()}
-                    </span>
-                  )}
-                  {msg.media_path && msg.body && <br />}
+                  {(() => {
+                    let count = 0
+                    if (msg.media_paths_json) {
+                      try { count = JSON.parse(msg.media_paths_json).length } catch {}
+                    }
+                    if (count > 1) {
+                      return (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, marginBottom: msg.body ? 4 : 0 }}>
+                          <Paperclip size={12} strokeWidth={1.6} /> {count} allegati
+                        </span>
+                      )
+                    }
+                    if (msg.media_path) {
+                      return (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, marginBottom: msg.body ? 4 : 0 }}>
+                          <Paperclip size={12} strokeWidth={1.6} /> {msg.media_path.split(/[\\/]/).pop()}
+                        </span>
+                      )
+                    }
+                    return null
+                  })()}
+                  {(msg.media_path || msg.media_paths_json) && msg.body && <br />}
                   {msg.body}
                 </div>
 

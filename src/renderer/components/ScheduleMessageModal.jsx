@@ -131,9 +131,15 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
   const pendingMentionIdsRef = useRef(editing?.mentions_json ? JSON.parse(editing.mentions_json) : [])
 
   // Media attachment state
-  const [mediaAttachment, setMediaAttachment] = useState(() =>
-    editing?.media_path ? { path: editing.media_path, name: editing.media_path.split(/[\\/]/).pop(), type: editing.media_type || 'document' } : null
-  )
+  const [mediaAttachments, setMediaAttachments] = useState(() => {
+    if (editing?.media_paths_json) {
+      try { return JSON.parse(editing.media_paths_json) } catch { /* fall through */ }
+    }
+    if (editing?.media_path) {
+      return [{ path: editing.media_path, name: editing.media_path.split(/[\\/]/).pop(), type: editing.media_type || 'document' }]
+    }
+    return []
+  })
   const [isRecording, setIsRecording] = useState(false)
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const recorderRef = useRef(null)
@@ -199,32 +205,50 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     return t?.name || ''
   }, [form.target_id, targetList])
 
-  const handlePickFile = async () => {
-    const filePath = await window.api.pickMediaFile()
-    if (!filePath) return
-    const name = filePath.split(/[\\/]/).pop()
+  const detectType = (name) => {
     const ext = name.split('.').pop().toLowerCase()
     const imgExts = ['jpg','jpeg','png','gif','webp']
     const audioExts = ['mp3','ogg','wav','m4a','opus']
     const videoExts = ['mp4','mov','avi','mkv','webm']
-    const type = imgExts.includes(ext) ? 'image' : audioExts.includes(ext) ? 'audio' : videoExts.includes(ext) ? 'video' : 'document'
-    setMediaAttachment({ path: filePath, name, type })
+    return imgExts.includes(ext) ? 'image' : audioExts.includes(ext) ? 'audio' : videoExts.includes(ext) ? 'video' : 'document'
+  }
+
+  const handlePickFiles = async () => {
+    let filePaths = []
+    if (typeof window.api.pickMediaFiles === 'function') {
+      const res = await window.api.pickMediaFiles()
+      if (!res || res.canceled) return
+      filePaths = res.filePaths || []
+    } else {
+      const single = await window.api.pickMediaFile()
+      if (!single) return
+      filePaths = [single]
+    }
+    if (filePaths.length === 0) return
+    const newItems = filePaths.map(fp => {
+      const name = fp.split(/[\\/]/).pop()
+      return { path: fp, name, type: detectType(name) }
+    })
+    setMediaAttachments(prev => [...prev, ...newItems])
   }
 
   const handleStartRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' })
+      const preferredMime = MediaRecorder.isTypeSupported('audio/ogg; codecs=opus')
+        ? 'audio/ogg; codecs=opus'
+        : 'audio/webm; codecs=opus'
+      const recorder = new MediaRecorder(stream, { mimeType: preferredMime })
       recChunksRef.current = []
       recorder.ondataavailable = e => { if (e.data.size > 0) recChunksRef.current.push(e.data) }
       recorder.onstop = async () => {
         stream.getTracks().forEach(t => t.stop())
-        const blob = new Blob(recChunksRef.current, { type: 'audio/ogg; codecs=opus' })
-        const buffer = await blob.arrayBuffer()
-        const filePath = await window.api.saveRecording(new Uint8Array(buffer))
+        const blob = new Blob(recChunksRef.current, { type: recorder.mimeType })
+        const buffer = new Uint8Array(await blob.arrayBuffer())
+        const filePath = await window.api.saveRecording(buffer)
         if (filePath) {
           const name = filePath.split(/[\\/]/).pop()
-          setMediaAttachment({ path: filePath, name, type: 'audio' })
+          setMediaAttachments(prev => [...prev, { path: filePath, name, type: 'audio' }])
         }
       }
       recorder.start()
@@ -244,9 +268,11 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
     setIsRecording(false)
   }
 
-  const handleRemoveMedia = () => setMediaAttachment(null)
+  const handleRemoveMedia = (index) => {
+    setMediaAttachments(prev => prev.filter((_, i) => i !== index))
+  }
 
-  const isValid = form.target_id && (form.body.trim() || mediaAttachment) && form.scheduled_at &&
+  const isValid = form.target_id && (form.body.trim() || mediaAttachments.length > 0) && form.scheduled_at &&
     (form.recurrence_type !== 'custom' || form.recurrence_rule.trim())
 
   const willSendInPast = useMemo(() => {
@@ -312,14 +338,16 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
       return
     }
     setFormError('')
+    const firstAtt = mediaAttachments[0]
     const payload = {
       account_id: accountId,
       target_type: form.target_type,
       target_id: targetIdNum,
       target_name: selectedTargetName,
       body: form.body,
-      media_type: mediaAttachment?.type || 'text',
-      media_path: mediaAttachment?.path || null,
+      media_type: firstAtt?.type || 'text',
+      media_path: firstAtt?.path || null,
+      media_paths_json: mediaAttachments.length > 0 ? JSON.stringify(mediaAttachments) : null,
       scheduled_at: dt.toISOString(),
       next_send_at: dt.toISOString(),
       recurrence_type: form.recurrence_type,
@@ -392,7 +420,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
                 ref={msgTextareaRef}
                 className="chat-input"
                 rows={4}
-                placeholder={mediaAttachment ? 'Didascalia (opzionale)...' : 'Scrivi il messaggio...'}
+                placeholder={mediaAttachments.length > 0 ? 'Didascalia (opzionale)...' : 'Scrivi il messaggio...'}
                 value={form.body}
                 onChange={handleBodyChange}
                 onKeyDown={handleBodyKeyDown}
@@ -403,35 +431,38 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
             </div>
           </div>
 
-          {/* Media attachment */}
+          {/* Media attachments */}
           <div>
-            <label style={lblStyle}><Paperclip size={12} strokeWidth={1.6} /> Allegato</label>
-            {mediaAttachment ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8 }}>
-                {mediaAttachment.type === 'image'    && <Image    size={18} strokeWidth={1.6} color="var(--accent)" />}
-                {mediaAttachment.type === 'audio'    && <FileAudio size={18} strokeWidth={1.6} color="var(--accent)" />}
-                {mediaAttachment.type === 'video'    && <FileText  size={18} strokeWidth={1.6} color="var(--accent)" />}
-                {mediaAttachment.type === 'document' && <FileText  size={18} strokeWidth={1.6} color="var(--accent)" />}
-                <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mediaAttachment.name}</span>
-                <button type="button" className="btn--icon" onClick={handleRemoveMedia} title="Rimuovi allegato"><Trash2 size={15} strokeWidth={1.6} /></button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={handlePickFile}>
-                  <Paperclip size={14} strokeWidth={1.6} /> Allega file
-                </button>
-                {!isRecording ? (
-                  <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={handleStartRecording}>
-                    <Mic size={14} strokeWidth={1.6} /> Registra audio
-                  </button>
-                ) : (
-                  <button type="button" className="btn btn--primary" style={{ flex: 1 }} onClick={handleStopRecording}>
-                    <Square size={14} strokeWidth={1.6} fill="currentColor" />
-                    {String(Math.floor(recordingSeconds / 60)).padStart(2,'0')}:{String(recordingSeconds % 60).padStart(2,'0')}
-                  </button>
-                )}
+            <label style={lblStyle}><Paperclip size={12} strokeWidth={1.6} /> Allegati{mediaAttachments.length > 0 && <span style={{ marginLeft: 6, opacity: 0.6 }}>· {mediaAttachments.length}</span>}</label>
+            {mediaAttachments.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                {mediaAttachments.map((att, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 999 }}>
+                    {att.type === 'image'    && <Image    size={16} strokeWidth={1.6} color="var(--accent)" />}
+                    {att.type === 'audio'    && <FileAudio size={16} strokeWidth={1.6} color="var(--accent)" />}
+                    {att.type === 'video'    && <FileText  size={16} strokeWidth={1.6} color="var(--accent)" />}
+                    {att.type === 'document' && <FileText  size={16} strokeWidth={1.6} color="var(--accent)" />}
+                    <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                    <button type="button" className="btn--icon" onClick={() => handleRemoveMedia(i)} title="Rimuovi allegato"><X size={14} strokeWidth={1.6} /></button>
+                  </div>
+                ))}
               </div>
             )}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={handlePickFiles}>
+                <Paperclip size={14} strokeWidth={1.6} /> Allega file
+              </button>
+              {!isRecording ? (
+                <button type="button" className="btn btn--ghost" style={{ flex: 1 }} onClick={handleStartRecording}>
+                  <Mic size={14} strokeWidth={1.6} /> Registra audio
+                </button>
+              ) : (
+                <button type="button" className="btn btn--primary" style={{ flex: 1 }} onClick={handleStopRecording}>
+                  <Square size={14} strokeWidth={1.6} fill="currentColor" />
+                  {String(Math.floor(recordingSeconds / 60)).padStart(2,'0')}:{String(recordingSeconds % 60).padStart(2,'0')}
+                </button>
+              )}
+            </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -466,7 +497,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
           )}
 
           {/* Anteprima */}
-          {(form.body || mediaAttachment) && form.target_id && (
+          {(form.body || mediaAttachments.length > 0) && form.target_id && (
             <div style={previewBox}>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Eye size={12} strokeWidth={1.6} /> ANTEPRIMA
@@ -479,10 +510,14 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
                 borderRadius: 12, borderTopRightRadius: 4, alignSelf: 'flex-end', maxWidth: '90%',
                 fontSize: 13
               }}>
-                {mediaAttachment && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: form.body ? 6 : 0, opacity: 0.9 }}>
-                    <Paperclip size={13} strokeWidth={1.6} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{mediaAttachment.name}</span>
+                {mediaAttachments.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: form.body ? 6 : 0, opacity: 0.9 }}>
+                    {mediaAttachments.map((att, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Paperclip size={13} strokeWidth={1.6} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>{att.name}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
                 {form.body && <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{form.body}</div>}
