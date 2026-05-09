@@ -342,7 +342,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
       })
     } catch (err) {
       console.error('Errore invio media:', err)
-      setChatError('Errore invio allegato: riprova tra qualche istante.')
+      setChatError(`Errore invio allegato: ${err?.message || 'riprova tra qualche istante'}`)
     } finally {
       setLoading(false)
     }
@@ -408,10 +408,11 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
         }
         const blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' })
         const base64 = await getBase64FromBlob(blob)
+        const ext = blob.type.includes('ogg') ? 'ogg' : 'webm'
         await sendMediaMessage({
           mediaData: base64,
-          mediaMime: 'audio/ogg; codecs=opus',
-          filename: `audio-${Date.now()}.ogg`
+          mediaMime: blob.type,
+          filename: `audio-${Date.now()}.${ext}`
         })
         setRecording(false)
         setRecordingStatus('')

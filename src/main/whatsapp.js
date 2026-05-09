@@ -157,25 +157,19 @@ class WhatsAppManager {
             if (!fs.existsSync(options.mediaPath)) {
               throw new Error(`File non trovato: ${options.mediaPath}`)
             }
+            payload = MessageMedia.fromFilePath(options.mediaPath)
             if (isAudioExt(options.mediaPath) || isAudioMime(options.mediaMime)) {
-              const base64 = fs.readFileSync(options.mediaPath).toString('base64')
-              const baseName = path.basename(options.mediaPath, path.extname(options.mediaPath)) + '.ogg'
-              payload = new MessageMedia('audio/ogg; codecs=opus', base64, baseName)
               sendOptions.sendAudioAsVoice = true
-            } else {
-              payload = MessageMedia.fromFilePath(options.mediaPath)
             }
           } else {
             if (!options.mediaMime || !options.mediaData) {
               throw new Error('Dati media incompleti')
             }
+            const baseMime = options.mediaMime.split(';')[0].trim()
+            const filename = options.filename || `file.${baseMime.split('/')[1] || 'bin'}`
+            payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
             if (isAudioMime(options.mediaMime)) {
-              const filename = (options.filename ? options.filename.replace(/\.[^.]+$/, '') : 'audio') + '.ogg'
-              payload = new MessageMedia('audio/ogg; codecs=opus', options.mediaData, filename)
               sendOptions.sendAudioAsVoice = true
-            } else {
-              const filename = options.filename || `file.${options.mediaMime.split('/')[1] || 'bin'}`
-              payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
             }
           }
         }
@@ -327,15 +321,10 @@ class WhatsAppManager {
             console.log(`[WA] scheduled attachment[${i}]="${att.path}" exists=${exists}`)
             if (!exists) { console.warn(`[WA] File non trovato: ${att.path}`); continue }
 
-            let media
+            const media = MessageMedia.fromFilePath(att.path)
             const opts = {}
             if (isAudioExt(att.path) || (att.type && att.type === 'audio')) {
-              const base64 = fs.readFileSync(att.path).toString('base64')
-              const baseName = path.basename(att.path, path.extname(att.path)) + '.ogg'
-              media = new MessageMedia('audio/ogg; codecs=opus', base64, baseName)
               opts.sendAudioAsVoice = true
-            } else {
-              media = MessageMedia.fromFilePath(att.path)
             }
             // Caption + mentions solo sul primo allegato
             if (i === 0) {

@@ -313,10 +313,11 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     return { canceled: !!result.canceled, filePaths: result.filePaths || [] }
   })
 
-  ipcMain.handle('media:saveRecording', async (_, uint8array) => {
+  ipcMain.handle('media:saveRecording', async (_, uint8array, mime) => {
     const scheduledMediaDir = path.join(app.getPath('userData'), 'scheduled-media')
     fs.mkdirSync(scheduledMediaDir, { recursive: true })
-    const filename = `rec-${Date.now()}.ogg`
+    const ext = (mime || '').toLowerCase().includes('ogg') ? 'ogg' : 'webm'
+    const filename = `rec-${Date.now()}.${ext}`
     const filePath = path.join(scheduledMediaDir, filename)
     fs.writeFileSync(filePath, Buffer.from(uint8array))
     return filePath

@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteScheduled: (id) => ipcRenderer.invoke('scheduled:delete', id),
   pickMediaFile: () => ipcRenderer.invoke('media:pickFile'),
   pickMediaFiles: () => ipcRenderer.invoke('media:pickFiles'),
-  saveRecording: (uint8array) => ipcRenderer.invoke('media:saveRecording', uint8array),
+  saveRecording: (uint8array, mime) => ipcRenderer.invoke('media:saveRecording', uint8array, mime),
 
   // Tasks
   getTasks: (filters) => ipcRenderer.invoke('tasks:getAll', filters),

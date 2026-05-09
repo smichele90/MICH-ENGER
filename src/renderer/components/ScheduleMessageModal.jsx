@@ -245,7 +245,7 @@ export default function ScheduleMessageModal({ accountId, initialContact, editin
         stream.getTracks().forEach(t => t.stop())
         const blob = new Blob(recChunksRef.current, { type: recorder.mimeType })
         const buffer = new Uint8Array(await blob.arrayBuffer())
-        const filePath = await window.api.saveRecording(buffer)
+        const filePath = await window.api.saveRecording(buffer, recorder.mimeType)
         if (filePath) {
           const name = filePath.split(/[\\/]/).pop()
           setMediaAttachments(prev => [...prev, { path: filePath, name, type: 'audio' }])
