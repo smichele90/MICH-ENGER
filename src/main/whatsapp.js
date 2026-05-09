@@ -509,6 +509,9 @@ class WhatsAppManager {
     client.on('change_state', (state) => {
       console.log(`[WA] change_state account ${accountId}:`, state)
     })
+    client.on('authenticated', () => {
+      console.log(`[WA] authenticated account ${accountId}`)
+    })
 
     try {
       const chromePath = app.isPackaged

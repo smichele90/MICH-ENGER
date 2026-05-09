@@ -2,6 +2,10 @@ const { app, BrowserWindow, ipcMain, nativeImage, nativeTheme, protocol } = requ
 const path = require('path')
 const fs = require('fs')
 
+if (app.isPackaged) {
+  try { process.chdir(path.dirname(process.execPath)) } catch {}
+}
+
 try {
   const logDir = app.getPath('userData')
   fs.mkdirSync(logDir, { recursive: true })
