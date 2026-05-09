@@ -13,7 +13,25 @@ function tmpDir() {
 
 function runFfmpeg(inputPath, outputPath) {
   return new Promise((resolve, reject) => {
-    const args = ['-y', '-i', inputPath, '-vn', '-c:a', 'libopus', '-b:a', '32k', '-ar', '48000', '-ac', '1', outputPath]
+    const args = [
+      '-y',
+      '-i', inputPath,
+      '-vn',
+      '-map_metadata', '-1',
+      '-c:a', 'libopus',
+      '-ac', '1',
+      '-ar', '16000',
+      '-b:a', '16k',
+      '-application', 'voip',
+      '-compression_level', '10',
+      '-frame_duration', '20',
+      '-packet_loss', '0',
+      '-avoid_negative_ts', 'make_zero',
+      '-fflags', '+bitexact',
+      '-strict', 'experimental',
+      '-f', 'ogg',
+      outputPath
+    ]
     const proc = spawn(ffmpegPath, args, { windowsHide: true })
     let stderr = ''
     proc.stderr.on('data', d => { stderr += d.toString() })
