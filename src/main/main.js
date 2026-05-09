@@ -1,5 +1,45 @@
 const { app, BrowserWindow, ipcMain, nativeImage, nativeTheme, protocol } = require('electron')
 const path = require('path')
+const fs = require('fs')
+
+try {
+  const logDir = app.getPath('userData')
+  fs.mkdirSync(logDir, { recursive: true })
+  const logPath = path.join(logDir, 'main.log')
+  const logStream = fs.createWriteStream(logPath, { flags: 'w' })
+  const ts = () => new Date().toISOString()
+  const fmt = (args) => args.map(a => {
+    if (a instanceof Error) return a.stack || a.message
+    if (typeof a === 'object') { try { return JSON.stringify(a) } catch { return String(a) } }
+    return String(a)
+  }).join(' ')
+  const wrap = (level, orig) => (...args) => {
+    try { logStream.write(`[${ts()}] [${level}] ${fmt(args)}\n`) } catch {}
+    orig(...args)
+  }
+  console.log = wrap('log', console.log.bind(console))
+  console.error = wrap('error', console.error.bind(console))
+  console.warn = wrap('warn', console.warn.bind(console))
+  console.info = wrap('info', console.info.bind(console))
+  process.on('uncaughtException', (err) => {
+    try { logStream.write(`[${ts()}] [uncaughtException] ${err.stack || err.message}\n`) } catch {}
+  })
+  process.on('unhandledRejection', (reason) => {
+    try { logStream.write(`[${ts()}] [unhandledRejection] ${reason instanceof Error ? (reason.stack || reason.message) : String(reason)}\n`) } catch {}
+  })
+  console.log(`[main] log file: ${logPath}`)
+  console.log(`[main] platform: ${process.platform} arch: ${process.arch} electron: ${process.versions.electron}`)
+  console.log(`[main] argv: ${process.argv.join(' ')}`)
+  console.log(`[main] cwd: ${process.cwd()}`)
+  console.log(`[main] resourcesPath: ${process.resourcesPath}`)
+  console.log(`[main] USERPROFILE: ${process.env.USERPROFILE}`)
+  console.log(`[main] APPDATA: ${process.env.APPDATA}`)
+  console.log(`[main] LOCALAPPDATA: ${process.env.LOCALAPPDATA}`)
+  console.log(`[main] userData: ${logDir}`)
+} catch (e) {
+  console.error('[main] failed to setup file logger:', e?.message)
+}
+
 const { initDatabase, dedupeContacts, cleanSystemContacts } = require('./database')
 const { registerIpcHandlers } = require('./ipc-handlers')
 const { WhatsAppManager } = require('./whatsapp')

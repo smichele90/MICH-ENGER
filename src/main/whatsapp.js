@@ -503,7 +503,19 @@ class WhatsAppManager {
       this.clients.delete(accountId)
     })
 
+    client.on('auth_failure', (msg) => {
+      console.error(`[WA] auth_failure account ${accountId}:`, msg)
+    })
+    client.on('change_state', (state) => {
+      console.log(`[WA] change_state account ${accountId}:`, state)
+    })
+
     try {
+      const chromePath = app.isPackaged
+        ? path.join(process.resourcesPath, 'chrome', 'chrome-win64', 'chrome.exe')
+        : '(undefined - bundled puppeteer)'
+      const exists = app.isPackaged ? fs.existsSync(chromePath) : 'n/a'
+      console.log(`[WA] chromePath="${chromePath}" exists=${exists}`)
       console.log(`[WA] Init account ${accountId}...`)
       await client.initialize()
     } catch (err) {
