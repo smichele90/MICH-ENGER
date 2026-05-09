@@ -3,6 +3,7 @@ const { app, ipcMain } = require('electron')
 const path = require('path')
 const fs = require('fs')
 const { updateMessageAck, upsertReaction, deleteReaction } = require('./database')
+const { transcodeBufferToOgg, transcodeFileToOgg } = require('./audio-transcode')
 
 /**
  * WhatsAppManager riprogettato per essere robusto come WhatsApp Web:
@@ -151,25 +152,42 @@ class WhatsAppManager {
 
         const isAudioMime = (m) => typeof m === 'string' && m.toLowerCase().startsWith('audio/')
         const isAudioExt = (p) => /\.(ogg|opus|mp3|m4a|wav|webm|aac)$/i.test(p || '')
+        const isOggExt = (p) => /\.(ogg|opus)$/i.test(p || '')
+        const isOggMime = (m) => typeof m === 'string' && /^audio\/(ogg|opus)/i.test(m)
 
         if (options.mediaPath || options.mediaData) {
           if (options.mediaPath) {
             if (!fs.existsSync(options.mediaPath)) {
               throw new Error(`File non trovato: ${options.mediaPath}`)
             }
-            payload = MessageMedia.fromFilePath(options.mediaPath)
-            if (isAudioExt(options.mediaPath) || isAudioMime(options.mediaMime)) {
+            const isAudio = isAudioExt(options.mediaPath) || isAudioMime(options.mediaMime)
+            if (isAudio && !isOggExt(options.mediaPath)) {
+              const oggPath = await transcodeFileToOgg(options.mediaPath)
+              try {
+                const base64 = fs.readFileSync(oggPath).toString('base64')
+                payload = new MessageMedia('audio/ogg; codecs=opus', base64, 'voice.ogg')
+              } finally {
+                try { fs.unlinkSync(oggPath) } catch {}
+              }
               sendOptions.sendAudioAsVoice = true
+            } else {
+              payload = MessageMedia.fromFilePath(options.mediaPath)
+              if (isAudio) sendOptions.sendAudioAsVoice = true
             }
           } else {
             if (!options.mediaMime || !options.mediaData) {
               throw new Error('Dati media incompleti')
             }
-            const baseMime = options.mediaMime.split(';')[0].trim()
-            const filename = options.filename || `file.${baseMime.split('/')[1] || 'bin'}`
-            payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
-            if (isAudioMime(options.mediaMime)) {
+            if (isAudioMime(options.mediaMime) && !isOggMime(options.mediaMime)) {
+              const inputBuf = Buffer.from(options.mediaData, 'base64')
+              const oggBuf = await transcodeBufferToOgg(inputBuf)
+              payload = new MessageMedia('audio/ogg; codecs=opus', oggBuf.toString('base64'), 'voice.ogg')
               sendOptions.sendAudioAsVoice = true
+            } else {
+              const baseMime = options.mediaMime.split(';')[0].trim()
+              const filename = options.filename || `file.${baseMime.split('/')[1] || 'bin'}`
+              payload = new MessageMedia(options.mediaMime, options.mediaData, filename)
+              if (isAudioMime(options.mediaMime)) sendOptions.sendAudioAsVoice = true
             }
           }
         }
@@ -312,6 +330,7 @@ class WhatsAppManager {
       }
 
       const isAudioExt = (p) => /\.(ogg|opus|mp3|m4a|wav|webm|aac)$/i.test(p || '')
+      const isOggExt = (p) => /\.(ogg|opus)$/i.test(p || '')
 
       for (const waId of targets) {
         if (attachments.length > 0) {
@@ -321,10 +340,18 @@ class WhatsAppManager {
             console.log(`[WA] scheduled attachment[${i}]="${att.path}" exists=${exists}`)
             if (!exists) { console.warn(`[WA] File non trovato: ${att.path}`); continue }
 
-            const media = MessageMedia.fromFilePath(att.path)
+            const isAudio = isAudioExt(att.path) || (att.type && att.type === 'audio')
+            let media
             const opts = {}
-            if (isAudioExt(att.path) || (att.type && att.type === 'audio')) {
+            let tmpOgg = null
+            if (isAudio && !isOggExt(att.path)) {
+              tmpOgg = await transcodeFileToOgg(att.path)
+              const base64 = fs.readFileSync(tmpOgg).toString('base64')
+              media = new MessageMedia('audio/ogg; codecs=opus', base64, 'voice.ogg')
               opts.sendAudioAsVoice = true
+            } else {
+              media = MessageMedia.fromFilePath(att.path)
+              if (isAudio) opts.sendAudioAsVoice = true
             }
             // Caption + mentions solo sul primo allegato
             if (i === 0) {
@@ -332,6 +359,7 @@ class WhatsAppManager {
               if (mentionContacts) opts.mentions = mentionContacts
             }
             await client.sendMessage(waId, media, opts)
+            if (tmpOgg) { try { fs.unlinkSync(tmpOgg) } catch {} }
             console.log(`[WA] media[${i}] inviato a ${waId}`)
             await new Promise(r => setTimeout(r, 400))
           }
