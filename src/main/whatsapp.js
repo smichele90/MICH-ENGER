@@ -12,19 +12,32 @@ const { transcodeBufferToOgg, transcodeFileToOgg } = require('./audio-transcode'
  * solo se Edge non e' presente e l'app e' packaged. In dev ritorna undefined.
  */
 function resolveBrowserPath() {
-  const candidates = [
-    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
-    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'Application', 'msedge.exe')
-  ].filter(Boolean)
+  let candidates = []
+  if (process.platform === 'win32') {
+    candidates = [
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'Application', 'msedge.exe')
+    ]
+  } else if (process.platform === 'darwin') {
+    candidates = [
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium'
+    ]
+  } else if (process.platform === 'linux') {
+    candidates = [
+      '/usr/bin/microsoft-edge',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium'
+    ]
+  }
+  candidates = candidates.filter(Boolean)
   for (const p of candidates) {
     try { if (fs.existsSync(p)) return p } catch {}
   }
-  if (app.isPackaged) {
-    const bundled = path.join(process.resourcesPath, 'chrome', 'chrome-win64', 'chrome.exe')
-    if (fs.existsSync(bundled)) return bundled
-  }
-  return undefined
+  return undefined // puppeteer cerchera nei suoi default
 }
 
 /**
