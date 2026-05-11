@@ -422,7 +422,7 @@ class WhatsAppManager {
         dataPath: path.join(app.getPath('userData'), 'sessions')
       }),
       puppeteer: {
-        headless: true,
+        headless: 'new',
         executablePath: resolveBrowserPath(),
         protocolTimeout: 180_000, // 3 min — evita timeout su sync di chat con molti messaggi
         args: [
@@ -431,12 +431,13 @@ class WhatsAppManager {
           '--disable-dev-shm-usage',
           '--disable-extensions',
           '--no-first-run',
+          '--no-default-browser-check',
           '--disable-gpu',
           '--disable-gpu-sandbox',
           '--disable-software-rasterizer',
           '--disable-background-networking',
           '--disable-site-isolation-trials',
-          '--disable-features=IsolateOrigins,site-per-process',
+          '--disable-features=IsolateOrigins,site-per-process,msEdgeIdentityDialogs',
           '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ],
         handleSIGINT: false,
@@ -536,11 +537,7 @@ class WhatsAppManager {
     })
 
     try {
-      const chromePath = app.isPackaged
-        ? path.join(process.resourcesPath, 'chrome', 'chrome-win64', 'chrome.exe')
-        : '(undefined - bundled puppeteer)'
-      const exists = app.isPackaged ? fs.existsSync(chromePath) : 'n/a'
-      console.log(`[WA] chromePath="${chromePath}" exists=${exists}`)
+      console.log(`[WA] browser="${resolveBrowserPath() || '(default puppeteer)'}"`)
       console.log(`[WA] Init account ${accountId}...`)
       await client.initialize()
     } catch (err) {
