@@ -43,12 +43,6 @@
     "extraMetadata": {
       "main": "out/main/index.js"
     },
-    "extraResources": [
-      {
-        "from": "C:/Users/cassa/.cache/puppeteer/chrome/win64-146.0.7680.31",
-        "to": "chrome"
-      }
-    ],
     "directories": {
       "output": "dist"
     },

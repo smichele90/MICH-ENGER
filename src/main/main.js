@@ -46,9 +46,11 @@ try {
 
 const { initDatabase, dedupeContacts, cleanSystemContacts } = require('./database')
 const { registerIpcHandlers } = require('./ipc-handlers')
-const { WhatsAppManager } = require('./whatsapp')
+const { WhatsAppManager, resolveBrowserPath } = require('./whatsapp')
 const { Scheduler } = require('./scheduler')
 const { NotificationManager } = require('./notification-manager')
+
+try { console.log(`[main] resolved browser: ${resolveBrowserPath() || '(default puppeteer)'}`) } catch {}
 
 let mainWindow = null
 let waManager = null

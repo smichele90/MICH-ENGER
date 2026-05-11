@@ -6,6 +6,28 @@ const { updateMessageAck, upsertReaction, deleteReaction } = require('./database
 const { transcodeBufferToOgg, transcodeFileToOgg } = require('./audio-transcode')
 
 /**
+ * Risolve il path del browser che Puppeteer deve usare per pilotare WhatsApp Web.
+ * Preferisce Microsoft Edge installato sul sistema (firmato Microsoft, testato
+ * per girare a Medium IL da utente standard). Fallback al Chromium bundled
+ * solo se Edge non e' presente e l'app e' packaged. In dev ritorna undefined.
+ */
+function resolveBrowserPath() {
+  const candidates = [
+    'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+    'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Microsoft', 'Edge', 'Application', 'msedge.exe')
+  ].filter(Boolean)
+  for (const p of candidates) {
+    try { if (fs.existsSync(p)) return p } catch {}
+  }
+  if (app.isPackaged) {
+    const bundled = path.join(process.resourcesPath, 'chrome', 'chrome-win64', 'chrome.exe')
+    if (fs.existsSync(bundled)) return bundled
+  }
+  return undefined
+}
+
+/**
  * WhatsAppManager riprogettato per essere robusto come WhatsApp Web:
  *  - Init idempotente (nessuna race condition: due chiamate concorrenti
  *    condividono la stessa Promise di inizializzazione).
@@ -401,9 +423,7 @@ class WhatsAppManager {
       }),
       puppeteer: {
         headless: true,
-        executablePath: app.isPackaged
-          ? path.join(process.resourcesPath, 'chrome', 'chrome-win64', 'chrome.exe')
-          : undefined,
+        executablePath: resolveBrowserPath(),
         protocolTimeout: 180_000, // 3 min — evita timeout su sync di chat con molti messaggi
         args: [
           '--no-sandbox',
@@ -415,6 +435,8 @@ class WhatsAppManager {
           '--disable-gpu-sandbox',
           '--disable-software-rasterizer',
           '--disable-background-networking',
+          '--disable-site-isolation-trials',
+          '--disable-features=IsolateOrigins,site-per-process',
           '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ],
         handleSIGINT: false,
@@ -876,4 +898,4 @@ class WhatsAppManager {
   }
 }
 
-module.exports = { WhatsAppManager }
+module.exports = { WhatsAppManager, resolveBrowserPath }
