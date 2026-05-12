@@ -114,6 +114,7 @@ class WhatsAppManager {
 
   initHandlers() {
     ipcMain.handle('wa:initialize', async (_, accountId) => this.initializeClient(accountId))
+    ipcMain.handle('wa:reconnect', async (_, accountId) => this.reconnectClient(accountId))
     ipcMain.handle('wa:destroy', async (_, accountId) => this.destroyClient(accountId))
 
     ipcMain.handle('wa:markAsRead', async (_, accountId, contactId) => {
@@ -425,6 +426,20 @@ class WhatsAppManager {
     return promise
   }
 
+  // Spegne e riaccende il client per quell'account: distrugge il browser
+  // Puppeteer (rilasciando il lock di LocalAuth) e poi rifa un init pulito.
+  async reconnectClient(accountId) {
+    const existing = this.clients.get(accountId)
+    if (existing) {
+      try { await existing.destroy() } catch (err) {
+        console.warn(`[WA] destroy on reconnect failed for ${accountId}:`, err.message)
+      }
+      this.clients.delete(accountId)
+    }
+    this.initializing.delete(accountId)
+    return this.initializeClient(accountId)
+  }
+
   async _doInitialize(accountId) {
     const account = this.db.prepare('SELECT * FROM accounts WHERE id = ?').get(accountId)
     if (!account) return false
@@ -506,6 +521,17 @@ class WhatsAppManager {
       if (!serializedId) return
       try {
         updateMessageAck(serializedId, ack)
+        // Se il messaggio è stato letto (ack=3) e non è un nostro messaggio, significa
+        // che l'utente ha aperto la chat dal telefono: azzeriamo il badge non-letti.
+        if (ack === 3) {
+          const row = this.db.prepare(
+            'SELECT contact_id, is_from_me FROM messages WHERE wa_serialized_id = ?'
+          ).get(serializedId)
+          if (row && !row.is_from_me) {
+            this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE id = ?').run(row.contact_id)
+            this.safeSend('wa:contacts-updated', { accountId })
+          }
+        }
         this.safeSend('wa:message-ack', { accountId, waSerializedId: serializedId, ack })
       } catch (err) { console.error('[WA] message_ack error:', err.message) }
     })
@@ -532,11 +558,14 @@ class WhatsAppManager {
       } catch (err) { console.error('[WA] message_reaction error:', err.message) }
     })
 
-    client.on('disconnected', (reason) => {
+    client.on('disconnected', async (reason) => {
       console.log(`[WA] Account ${accountId} disconnesso:`, reason)
       this.db.prepare('UPDATE accounts SET is_active = 0 WHERE id = ?').run(accountId)
       this.safeSend('wa:disconnected', { accountId, reason })
       this.clients.delete(accountId)
+      try { await client.destroy() } catch (err) {
+        console.warn(`[WA] destroy after disconnected failed for ${accountId}:`, err.message)
+      }
     })
 
     client.on('auth_failure', (msg) => {
@@ -619,7 +648,7 @@ class WhatsAppManager {
         const lastLocalMsg = this.db.prepare(`
           SELECT timestamp FROM messages
           WHERE contact_id = (SELECT id FROM contacts WHERE account_id = ? AND whatsapp_id = ?)
-          ORDER BY timestamp DESC LIMIT 1
+          ORDER BY timestamp DESC, id DESC LIMIT 1
         `).get(accountId, chatWaId)
 
         const messages = await chat.fetchMessages({ limit: 20 })

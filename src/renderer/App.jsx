@@ -145,7 +145,7 @@ export default function App() {
 
   const handleReconnect = useCallback(async (accountId) => {
     setConnectionStatuses(prev => ({ ...prev, [accountId]: 'loading' }))
-    await window.api.initializeWhatsApp(accountId)
+    await window.api.reconnectWhatsApp(accountId)
   }, [])
 
   // Toggle tema

@@ -72,9 +72,9 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   ipcMain.handle('contacts:getAll', (_, accountId) => {
     return db.prepare(`
       SELECT c.*,
-        (SELECT m.body FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC LIMIT 1) as last_message_body,
-        (SELECT m.media_type FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC LIMIT 1) as last_message_type,
-        (SELECT m.media_filename FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC LIMIT 1) as last_message_filename
+        (SELECT m.body FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) as last_message_body,
+        (SELECT m.media_type FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) as last_message_type,
+        (SELECT m.media_filename FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) as last_message_filename
       FROM contacts c
       WHERE c.account_id = ? AND c.is_group = 0
         AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
@@ -85,9 +85,9 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   ipcMain.handle('contacts:getGroups', (_, accountId) => {
     return db.prepare(`
       SELECT c.*,
-        (SELECT m.body FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC LIMIT 1) as last_message_body,
-        (SELECT m.media_type FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC LIMIT 1) as last_message_type,
-        (SELECT m.media_filename FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC LIMIT 1) as last_message_filename
+        (SELECT m.body FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) as last_message_body,
+        (SELECT m.media_type FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) as last_message_type,
+        (SELECT m.media_filename FROM messages m WHERE m.contact_id = c.id ORDER BY m.timestamp DESC, m.id DESC LIMIT 1) as last_message_filename
       FROM contacts c
       WHERE c.account_id = ? AND c.is_group = 1
         AND c.whatsapp_id NOT IN ('status@broadcast', '0@c.us')
@@ -146,7 +146,7 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
 
   // MESSAGES
   ipcMain.handle('messages:getByContact', (_, contactId, limit = 50, offset = 0) => {
-    return db.prepare('SELECT * FROM messages WHERE contact_id = ? ORDER BY timestamp DESC LIMIT ? OFFSET ?').all(contactId, limit, offset)
+    return db.prepare('SELECT * FROM messages WHERE contact_id = ? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?').all(contactId, limit, offset)
   })
   ipcMain.handle('messages:insert', (_, data) => {
     const result = db.prepare(`INSERT INTO messages (account_id, contact_id, wa_message_id, body, media_type, media_path, media_mime, media_filename, is_from_me, timestamp, status)
@@ -159,7 +159,7 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     return db.prepare('SELECT m.*, c.account_id FROM messages m JOIN contacts c ON c.id = m.contact_id WHERE m.id = ?').get(messageId)
   })
   ipcMain.handle('messages:search', (_, accountId, query) => {
-    return db.prepare('SELECT m.*, c.name as contact_name FROM messages m JOIN contacts c ON c.id = m.contact_id WHERE m.account_id = ? AND m.body LIKE ? ORDER BY m.timestamp DESC LIMIT 50')
+    return db.prepare('SELECT m.*, c.name as contact_name FROM messages m JOIN contacts c ON c.id = m.contact_id WHERE m.account_id = ? AND m.body LIKE ? ORDER BY m.timestamp DESC, m.id DESC LIMIT 50')
       .all(accountId, `%${query}%`)
   })
 

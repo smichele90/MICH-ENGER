@@ -151,7 +151,10 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
     const removeMsgListener = window.api.onWhatsAppEvent('wa:message', ({ accountId: msgAccountId, message }) => {
       if (msgAccountId === accountId && message.contact_id === contact.id) {
         setMessages(prev => {
-          if (prev.some(m => m.wa_message_id === message.wa_message_id)) return prev
+          if (prev.some(m =>
+            (message.wa_message_id && m.wa_message_id === message.wa_message_id) ||
+            (message.wa_serialized_id && m.wa_serialized_id === message.wa_serialized_id)
+          )) return prev
           return [...prev, message]
         })
       }
@@ -185,17 +188,20 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
     }
   }, [contact?.id, accountId])
 
-  // Scroll in fondo
+  // Scroll in fondo (saltato se stiamo evidenziando un messaggio specifico
+  // arrivato da un task, altrimenti lo scroll-end vincerebbe la race con
+  // lo scroll-to-message qui sotto)
   useEffect(() => {
+    if (highlightMessageId) return
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, highlightMessageId])
 
   // Scroll + highlight sul messaggio sorgente quando richiesto da TaskDetail
   useEffect(() => {
     if (!highlightMessageId || !messages.length) return
     const el = document.getElementById(`msg-${highlightMessageId}`)
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.scrollIntoView({ behavior: 'auto', block: 'center' })
       el.classList.add('msg-highlight')
       const t = setTimeout(() => {
         el.classList.remove('msg-highlight')

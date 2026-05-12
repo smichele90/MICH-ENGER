@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // WhatsApp
   initializeWhatsApp: (accountId) => ipcRenderer.invoke('wa:initialize', accountId),
+  reconnectWhatsApp: (accountId) => ipcRenderer.invoke('wa:reconnect', accountId),
   destroyWhatsApp: (accountId) => ipcRenderer.invoke('wa:destroy', accountId),
   markAsRead: (accountId, contactId) => ipcRenderer.invoke('wa:markAsRead', accountId, contactId),
   markAllAsRead: (accountId) => ipcRenderer.invoke('wa:markAllAsRead', accountId),
