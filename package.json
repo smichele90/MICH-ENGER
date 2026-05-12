@@ -1,6 +1,6 @@
 {
   "name": "mich-enger",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Client desktop WhatsApp con interfaccia Slack-like",
   "main": "src/main/main.js",
   "scripts": {
@@ -8,10 +8,13 @@
     "build": "electron-vite build",
     "preview": "electron-vite preview",
     "postinstall": "electron-rebuild -f -w better-sqlite3",
-    "package": "npm run build && electron-builder"
+    "package": "npm run build && electron-builder",
+    "release": "npm run build && electron-builder --publish always"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "electron-log": "^5.4.3",
+    "electron-updater": "^6.8.3",
     "ffmpeg-static": "^5.3.0",
     "lucide-react": "^0.468.0",
     "node-schedule": "^2.1.1",
@@ -31,6 +34,11 @@
   "build": {
     "appId": "com.michenger.app",
     "productName": "MICH-ENGER",
+    "publish": {
+      "provider": "github",
+      "owner": "smichele90",
+      "repo": "MICH-ENGER"
+    },
     "files": [
       "out/**",
       "assets/**"

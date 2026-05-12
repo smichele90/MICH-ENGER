@@ -49,6 +49,7 @@ const { registerIpcHandlers } = require('./ipc-handlers')
 const { WhatsAppManager, resolveBrowserPath } = require('./whatsapp')
 const { Scheduler } = require('./scheduler')
 const { NotificationManager } = require('./notification-manager')
+const { initUpdater } = require('./updater')
 
 try { console.log(`[main] resolved browser: ${resolveBrowserPath() || '(default puppeteer)'}`) } catch {}
 
@@ -188,6 +189,9 @@ app.whenReady().then(() => {
 
   // Registra IPC handlers
   registerIpcHandlers(db, waManager, scheduler, notificationManager)
+
+  // Controllo aggiornamenti (solo build pacchettizzata)
+  try { initUpdater(window) } catch (e) { console.error('[updater] init error:', e?.message) }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
