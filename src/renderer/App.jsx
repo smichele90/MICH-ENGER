@@ -48,6 +48,7 @@ export default function App() {
   const [confirmAccId, setConfirmAccId] = useState(null)
   const [highlightMessageId, setHighlightMessageId] = useState(null)
   const [soundEnabled, setSoundEnabled] = useState(true)
+  const [appVersion, setAppVersion] = useState('')
 
   // Ref per leggere i valori aggiornati dentro il listener wa:message senza re-registrarlo
   const activeContactRef = useRef(activeContact)
@@ -160,6 +161,7 @@ export default function App() {
   // Window controls + ascolto stato max dal main
   useEffect(() => {
     window.api.isMaximized().then(setIsMaximized).catch(() => {})
+    window.api.getAppVersion?.().then(v => setAppVersion(v || '')).catch(() => {})
     const off = window.api.on?.('window:maxState', (state) => setIsMaximized(state))
     return () => off?.()
   }, [])
@@ -240,6 +242,7 @@ export default function App() {
       {/* Titlebar personalizzata */}
       <div className="titlebar">
         <span className="titlebar__title">MICH-ENGER</span>
+        {appVersion && <span className="titlebar__version" title="Versione app">v{appVersion}</span>}
         <div className="titlebar__controls">
           <button className="titlebar__btn" onClick={handleMinimize} title="Riduci">
             <Minus size={14} strokeWidth={1.6} />

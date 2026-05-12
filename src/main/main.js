@@ -133,6 +133,9 @@ ipcMain.on('window:maximize', () => {
 ipcMain.on('window:close', () => mainWindow?.close())
 ipcMain.handle('window:isMaximized', () => mainWindow?.isMaximized())
 
+// Versione app (mostrata nella titlebar)
+ipcMain.handle('app:getVersion', () => app.getVersion())
+
 // Registra il protocollo come privilegiato per evitare blocchi di sicurezza nel renderer
 protocol.registerSchemesAsPrivileged([
   { scheme: 'media', privileges: { supportFetchAPI: true, secure: true, standard: true } }

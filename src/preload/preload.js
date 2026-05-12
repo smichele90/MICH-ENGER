@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   maximize: () => ipcRenderer.send('window:maximize'),
   close: () => ipcRenderer.send('window:close'),
   isMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion'),
 
   // Settings
   getSetting: (key) => ipcRenderer.invoke('settings:get', key),

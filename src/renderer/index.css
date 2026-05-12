@@ -45,6 +45,15 @@ body {
   flex-shrink: 0;
 }
 .titlebar__title { font-size: 13px; font-weight: 600; color: var(--text-secondary); letter-spacing: 1px; }
+.titlebar__version {
+  margin-left: auto;
+  margin-right: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  -webkit-app-region: no-drag;
+  user-select: text;
+}
 .titlebar__controls { display: flex; gap: 2px; -webkit-app-region: no-drag; }
 .titlebar__btn {
   width: 36px; height: 28px; display: flex; align-items: center; justify-content: center;
