@@ -69,6 +69,9 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
   })
 
   // CONTACTS
+  ipcMain.handle('contacts:getById', (_, contactId) => {
+    return db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId)
+  })
   ipcMain.handle('contacts:getAll', (_, accountId) => {
     return db.prepare(`
       SELECT c.*,

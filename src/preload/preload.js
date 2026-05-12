@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('api', {
 
   // Contacts
   getContacts: (accountId) => ipcRenderer.invoke('contacts:getAll', accountId),
+  getContactById: (contactId) => ipcRenderer.invoke('contacts:getById', contactId),
   getGroups: (accountId) => ipcRenderer.invoke('contacts:getGroups', accountId),
   searchContacts: (accountId, query) => ipcRenderer.invoke('contacts:search', accountId, query),
   upsertContact: (data) => ipcRenderer.invoke('contacts:upsert', data),

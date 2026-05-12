@@ -521,19 +521,25 @@ class WhatsAppManager {
       if (!serializedId) return
       try {
         updateMessageAck(serializedId, ack)
-        // Se il messaggio è stato letto (ack=3) e non è un nostro messaggio, significa
-        // che l'utente ha aperto la chat dal telefono: azzeriamo il badge non-letti.
-        if (ack === 3) {
-          const row = this.db.prepare(
-            'SELECT contact_id, is_from_me FROM messages WHERE wa_serialized_id = ?'
-          ).get(serializedId)
-          if (row && !row.is_from_me) {
-            this.db.prepare('UPDATE contacts SET unread_count = 0 WHERE id = ?').run(row.contact_id)
-            this.safeSend('wa:contacts-updated', { accountId })
-          }
-        }
         this.safeSend('wa:message-ack', { accountId, waSerializedId: serializedId, ack })
       } catch (err) { console.error('[WA] message_ack error:', err.message) }
+    })
+
+    // WhatsApp-web.js emette 'unread_count' quando l'utente legge i messaggi
+    // dal telefono (o da un'altra sessione web): sincronizza il badge non-letti
+    // del contatto locale col valore reale di chat.unreadCount.
+    client.on('unread_count', (chat) => {
+      try {
+        const chatWaId = this.toIdString(chat.id)
+        if (!chatWaId) return
+        const newCount = chat.unreadCount || 0
+        const row = this.db.prepare(
+          'SELECT id, unread_count FROM contacts WHERE account_id = ? AND whatsapp_id = ?'
+        ).get(accountId, chatWaId)
+        if (!row || row.unread_count === newCount) return
+        this.db.prepare('UPDATE contacts SET unread_count = ? WHERE id = ?').run(newCount, row.id)
+        this.safeSend('wa:contacts-updated', { accountId })
+      } catch (err) { console.error('[WA] unread_count error:', err.message) }
     })
 
     client.on('message_reaction', async (reaction) => {

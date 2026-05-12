@@ -200,8 +200,10 @@ export default function App() {
       if (options.contact) setActiveContact(options.contact)
       if (options.folder) setActiveFolder(options.folder)
       if (options.contactId) {
-        const all = await window.api.getContacts(activeAccount?.id)
-        const found = all.find(c => c.id === options.contactId)
+        // Usa getContactById invece di scansionare getContacts, perché
+        // quest'ultimo filtra is_group=0 e fallirebbe per i task collegati
+        // a messaggi di gruppo.
+        const found = await window.api.getContactById(options.contactId)
         if (found) setActiveContact(found)
       }
       if (options.messageId) setHighlightMessageId(options.messageId)
