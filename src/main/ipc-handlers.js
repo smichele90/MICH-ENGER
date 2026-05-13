@@ -239,6 +239,32 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     return map
   })
 
+  // Risolve sender wa_id → info contatto (nome + profile pic) per avatar mittente nei gruppi
+  ipcMain.handle('messages:resolveSenders', (_, accountId, waIds) => {
+    const map = {}
+    if (!Array.isArray(waIds) || waIds.length === 0) return map
+    const stmt = db.prepare('SELECT name, push_name, phone_number, whatsapp_id, profile_pic_path, profile_pic_url FROM contacts WHERE account_id = ? AND whatsapp_id = ?')
+    const stmtByPhone = db.prepare('SELECT name, push_name, phone_number, whatsapp_id, profile_pic_path, profile_pic_url FROM contacts WHERE account_id = ? AND phone_number = ?')
+    for (const waId of waIds) {
+      if (!waId || map[waId]) continue
+      let contact = stmt.get(accountId, waId)
+      if (!contact) {
+        const phone = String(waId).split('@')[0]
+        contact = stmtByPhone.get(accountId, phone)
+      }
+      if (contact) {
+        map[waId] = {
+          name: contact.name || contact.push_name || contact.phone_number || (contact.whatsapp_id || '').split('@')[0] || null,
+          profile_pic_path: contact.profile_pic_path || null,
+          profile_pic_url: contact.profile_pic_url || null
+        }
+      } else {
+        map[waId] = { name: null, profile_pic_path: null, profile_pic_url: null }
+      }
+    }
+    return map
+  })
+
   // SCHEDULED MESSAGES
   ipcMain.handle('scheduled:getAll', (_, accountId) => {
     return db.prepare('SELECT * FROM scheduled_messages WHERE account_id = ? ORDER BY next_send_at').all(accountId)
@@ -409,6 +435,19 @@ function registerIpcHandlers(db, waManager, scheduler, notificationManager) {
     } catch (err) {
       console.error('[IPC] file:open blocked:', err.message)
       return err.message
+    }
+  })
+  ipcMain.handle('shell:openExternal', async (_, url) => {
+    try {
+      if (typeof url !== 'string' || url.length === 0) throw new Error('invalid url')
+      const parsed = new URL(url)
+      const allowed = ['http:', 'https:', 'mailto:', 'tel:']
+      if (!allowed.includes(parsed.protocol)) throw new Error(`protocol blocked: ${parsed.protocol}`)
+      await shell.openExternal(url)
+      return { ok: true }
+    } catch (err) {
+      console.error('[IPC] shell:openExternal blocked:', err.message)
+      return { ok: false, error: err.message }
     }
   })
   ipcMain.handle('file:exists', (_, filePath) => {

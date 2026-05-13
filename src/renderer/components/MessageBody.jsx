@@ -1,8 +1,52 @@
 import React, { useState, useEffect } from 'react'
 
+const URL_REGEX = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi
+
+function trimTrailingPunctuation(url) {
+  let end = url.length
+  while (end > 0 && /[).,;:!?]/.test(url[end - 1])) end--
+  return { core: url.slice(0, end), trailing: url.slice(end) }
+}
+
+function handleLinkClick(e, url) {
+  e.preventDefault()
+  e.stopPropagation()
+  const full = url.startsWith('http') ? url : `https://${url}`
+  window.api?.openExternal?.(full)
+}
+
+function renderUrls(text, keyPrefix) {
+  if (!text) return text
+  const out = []
+  let lastIndex = 0
+  let match
+  let i = 0
+  URL_REGEX.lastIndex = 0
+  while ((match = URL_REGEX.exec(text)) !== null) {
+    const raw = match[0]
+    const { core, trailing } = trimTrailingPunctuation(raw)
+    if (!core) continue
+    if (match.index > lastIndex) out.push(text.substring(lastIndex, match.index))
+    out.push(
+      <a
+        key={`${keyPrefix}-url-${i++}-${match.index}`}
+        href={core.startsWith('http') ? core : `https://${core}`}
+        onClick={(e) => handleLinkClick(e, core)}
+        style={{ color: 'var(--accent)', textDecoration: 'underline', cursor: 'pointer' }}
+      >
+        {core}
+      </a>
+    )
+    if (trailing) out.push(trailing)
+    lastIndex = match.index + raw.length
+  }
+  if (lastIndex < text.length) out.push(text.substring(lastIndex))
+  return out.length > 0 ? out : text
+}
+
 /**
  * Renderizza il body di un messaggio con menzioni @numero risolte a nomi
- * Estrae i numeri nel formato @123456789 e li sostituisce con i nomi dei contatti
+ * e link cliccabili.
  */
 export default function MessageBody({ body, accountId, isGroup }) {
   const [resolvedBody, setResolvedBody] = useState(null)
@@ -13,13 +57,11 @@ export default function MessageBody({ body, accountId, isGroup }) {
       return
     }
 
-    // Se non è un gruppo, renderizza il body così com'è
     if (!isGroup) {
-      setResolvedBody(body)
+      setResolvedBody(renderUrls(body, 'plain'))
       return
     }
 
-    // Estrai tutti i phone_number dalle menzioni @numero
     const mentionRegex = /@(\d{1,20})/g
     const phoneNumbers = new Set()
     let match
@@ -28,21 +70,18 @@ export default function MessageBody({ body, accountId, isGroup }) {
     }
 
     if (phoneNumbers.size === 0) {
-      setResolvedBody(body)
+      setResolvedBody(renderUrls(body, 'grp'))
       return
     }
 
-    // Risolvi i phone_numbers a nomi
     async function resolve() {
       try {
         const numbersArray = Array.from(phoneNumbers)
-        console.log('[MessageBody] Risolvendo numeri:', numbersArray)
         const map = await window.api.resolvePhoneNumbers(accountId, numbersArray)
-        console.log('[MessageBody] Map risolto:', map)
         renderWithResolvedMentions(body, map)
       } catch (err) {
         console.error('Errore resolve phone numbers:', err)
-        setResolvedBody(body)
+        setResolvedBody(renderUrls(body, 'grp'))
       }
     }
 
@@ -54,17 +93,19 @@ export default function MessageBody({ body, accountId, isGroup }) {
     const mentionRegex = /@(\d{1,20})/g
     let lastIndex = 0
     let match
+    let i = 0
 
     while ((match = mentionRegex.exec(text)) !== null) {
       const phoneNum = match[1]
       const displayName = map[phoneNum] || phoneNum
 
-      // Testo prima della menzione
       if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index))
+        const seg = text.substring(lastIndex, match.index)
+        parts.push(
+          <React.Fragment key={`seg-${i++}-${match.index}`}>{renderUrls(seg, `seg-${match.index}`)}</React.Fragment>
+        )
       }
 
-      // Menzione risolta
       parts.push(
         <span key={`mention-${match.index}`} style={{ color: 'var(--accent)', fontWeight: 500 }}>
           @{displayName}
@@ -74,12 +115,14 @@ export default function MessageBody({ body, accountId, isGroup }) {
       lastIndex = match.index + match[0].length
     }
 
-    // Testo rimanente
     if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex))
+      const tail = text.substring(lastIndex)
+      parts.push(
+        <React.Fragment key={`seg-tail-${i++}`}>{renderUrls(tail, 'tail')}</React.Fragment>
+      )
     }
 
-    setResolvedBody(parts.length > 0 ? parts : text)
+    setResolvedBody(parts.length > 0 ? parts : renderUrls(text, 'fallback'))
   }
 
   return <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{resolvedBody || body}</div>

@@ -5,6 +5,7 @@ import ScheduleMessageModal from './ScheduleMessageModal'
 import MediaPreview from './MediaPreview'
 import MessageBody from './MessageBody'
 import AvatarImage from './AvatarImage'
+import SenderAvatar from './SenderAvatar'
 import ForwardModal from './ForwardModal'
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
@@ -80,6 +81,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const [showForwardModal, setShowForwardModal] = useState(null)
   const [chatError, setChatError] = useState('')
   const [groupMembers, setGroupMembers] = useState([])
+  const [sendersMap, setSendersMap] = useState({})
   const [mentionActive, setMentionActive] = useState(false)
   const [mentionSuggestions, setMentionSuggestions] = useState([])
   const [mentionIndex, setMentionIndex] = useState(0)
@@ -93,6 +95,26 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
     const t = setTimeout(() => setChatError(''), 4000)
     return () => clearTimeout(t)
   }, [chatError])
+
+  // Risolve info mittenti (nome + profile pic) per messaggi di gruppo
+  useEffect(() => {
+    if (!contact?.is_group || !accountId) return
+    const missing = new Set()
+    for (const m of messages) {
+      if (m.is_from_me) continue
+      const wid = m.sender_wa_id
+      if (wid && !sendersMap[wid]) missing.add(wid)
+    }
+    if (missing.size === 0) return
+    let cancelled = false
+    window.api.resolveSenders(accountId, Array.from(missing))
+      .then(map => {
+        if (cancelled || !map) return
+        setSendersMap(prev => ({ ...prev, ...map }))
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [messages, contact?.is_group, accountId, sendersMap])
 
   // Scarica media on-demand
   const handleDownloadMedia = async (msgId) => {
@@ -112,6 +134,9 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
   const chatEndRef = useRef(null)
   const textareaRef = useRef(null)
   const pendingMentionIdsRef = useRef([])
+
+  // Reset sendersMap quando cambia contatto
+  useEffect(() => { setSendersMap({}) }, [contact?.id])
 
   // Carica messaggi
   useEffect(() => {
@@ -521,6 +546,8 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
           const msgDate = formatDate(msg.timestamp)
           let showDateSep = false
           if (msgDate !== lastDate) { showDateSep = true; lastDate = msgDate }
+          const showSender = contact.is_group && !msg.is_from_me && (msg.sender_name || msg.sender_wa_id)
+          const senderInfo = msg.sender_wa_id ? sendersMap[msg.sender_wa_id] : null
 
           return (
             <React.Fragment key={msg.id}>
@@ -530,6 +557,19 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
                 </div>
               )}
               <div id={`msg-${msg.id}`} className={`message ${msg.is_from_me ? 'message--me' : 'message--other'}`}>
+                {showSender && (
+                  <div className="message__sender-row">
+                    <SenderAvatar
+                      waId={msg.sender_wa_id}
+                      name={msg.sender_name}
+                      info={senderInfo}
+                      size={22}
+                    />
+                    <span className="message__sender-name">
+                      {senderInfo?.name || msg.sender_name || (msg.sender_wa_id || '').split('@')[0]}
+                    </span>
+                  </div>
+                )}
                 <div className="message__bubble-row">
                   <div className="message__bubble">
                     {msg.media_type && msg.media_type !== 'text' && (
@@ -588,7 +628,6 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
                 </div>
                 <ReactionsBar reactions={reactionsMap.get(msg.wa_serialized_id) || []} />
                 <div className="message__time">
-                  {msg.sender_name && <span style={{ marginRight: 6, fontWeight: 600, color: 'var(--accent)' }}>{msg.sender_name}</span>}
                   {formatTime(msg.timestamp)}
                   {msg.is_from_me === 1 && <AckIndicator ack={msg.ack} />}
                 </div>

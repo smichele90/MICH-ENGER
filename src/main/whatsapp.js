@@ -787,12 +787,14 @@ class WhatsAppManager {
       }
     }
 
-    // Sender name nei gruppi (robusto: authorId può essere oggetto)
+    // Sender name e wa_id nei gruppi (robusto: authorId può essere oggetto)
     let senderName = null
+    let senderWaId = null
     if (contact.is_group && !msg.fromMe) {
       const rawAuthor = msg.author || msg.id?.participant || msg._data?.author || msg._data?.participant
       const authorId = this.toIdString(rawAuthor)
       if (authorId) {
+        senderWaId = authorId
         try {
           const client = this.clients.get(accountId)
           if (client) {
@@ -833,15 +835,15 @@ class WhatsAppManager {
     let result
     try {
       result = this.db.prepare(`
-        INSERT INTO messages (account_id, contact_id, wa_message_id, wa_serialized_id, body, media_type, media_path, media_mime, media_filename, media_thumb, media_duration, media_size, media_width, media_height, is_from_me, timestamp, status, sender_name, ack)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO messages (account_id, contact_id, wa_message_id, wa_serialized_id, body, media_type, media_path, media_mime, media_filename, media_thumb, media_duration, media_size, media_width, media_height, is_from_me, timestamp, status, sender_name, sender_wa_id, ack)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
         accountId, contact.id, msg.id.id, msg.id._serialized || null,
         msg.body || '',
         msg.hasMedia ? msg.type : 'text',
         mediaPath, mediaMime, mediaFilename,
         mediaThumb, mediaDuration, mediaSize, mediaWidth, mediaHeight,
-        msg.fromMe ? 1 : 0, timestamp, 'received', senderName,
+        msg.fromMe ? 1 : 0, timestamp, 'received', senderName, senderWaId,
         msg.ack != null ? msg.ack : 0
       )
     } catch (err) {
@@ -878,6 +880,7 @@ class WhatsAppManager {
         media_width: mediaWidth,
         media_height: mediaHeight,
         sender_name: senderName,
+        sender_wa_id: senderWaId,
         status: 'received',
         ack: msg.ack != null ? msg.ack : 0
       }

@@ -17,6 +17,7 @@ function initDatabase() {
   
   // Aggiungi colonne mancanti se necessario
   try { db.prepare('ALTER TABLE messages ADD COLUMN sender_name TEXT').run() } catch (e) {}
+  try { db.prepare('ALTER TABLE messages ADD COLUMN sender_wa_id TEXT').run() } catch (e) {}
   try { db.prepare('ALTER TABLE tasks ADD COLUMN recurrence_type TEXT DEFAULT "once"').run() } catch (e) {}
   try { db.prepare('ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT').run() } catch (e) {}
   // Metadati media (popolati dal sync, usati dal renderer per placeholder stile WA Web)

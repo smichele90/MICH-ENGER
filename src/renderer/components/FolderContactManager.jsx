@@ -143,7 +143,7 @@ function Row({ contact, children }) {
       borderBottom: '1px solid var(--border)'
     }}>
       <div style={{
-        width: 28, height: 28, borderRadius: '50%', background: 'var(--accent-light)',
+        width: 28, height: 28, borderRadius: 'var(--radius-md)', background: 'var(--accent-light)',
         color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
       }}>
         {contact.is_group ? <Users size={14} strokeWidth={1.6} /> : <User size={14} strokeWidth={1.6} />}

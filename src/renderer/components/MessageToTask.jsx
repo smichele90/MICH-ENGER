@@ -2,14 +2,15 @@
 import { CheckSquare, X, Save } from 'lucide-react'
 
 export default function MessageToTask({ message, anchorRect, onClose, onCreated }) {
-  const [title, setTitle] = useState((message?.body || '').slice(0, 80))
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState(message?.body || '')
   const [priority, setPriority] = useState('medium')
   const [dueDate, setDueDate] = useState('')
   const inputRef = useRef(null)
 
   useEffect(() => { inputRef.current?.focus() }, [])
 
-  const W = 380, H = 290
+  const W = 380, H = 360
   const popoverStyle = (() => {
     if (!anchorRect) return { position: 'fixed', top: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 1500 }
     const spaceBelow = window.innerHeight - anchorRect.bottom - 8
@@ -24,7 +25,7 @@ export default function MessageToTask({ message, anchorRect, onClose, onCreated 
     if (!title.trim()) return
     const payload = {
       title: title.trim(),
-      description: message?.body || '',
+      description: description.trim(),
       status: 'todo',
       priority,
       due_date: dueDate ? new Date(dueDate).toISOString() : null,
@@ -34,8 +35,6 @@ export default function MessageToTask({ message, anchorRect, onClose, onCreated 
     onCreated?.({ id: r.id, ...payload })
     onClose()
   }
-
-  const body = message?.body || ''
 
   return (
     <>
@@ -59,19 +58,6 @@ export default function MessageToTask({ message, anchorRect, onClose, onCreated 
           </button>
         </div>
 
-        {/* Anteprima messaggio */}
-        {body && (
-          <div style={{
-            fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.45,
-            background: 'var(--bg-secondary)', borderLeft: '3px solid var(--accent)',
-            borderRadius: '0 6px 6px 0', padding: '7px 10px',
-            maxHeight: 58, overflow: 'hidden', display: '-webkit-box',
-            WebkitLineClamp: 3, WebkitBoxOrient: 'vertical'
-          }}>
-            {body}
-          </div>
-        )}
-
         {/* Titolo */}
         <div>
           <label style={lbl}>Titolo *</label>
@@ -81,7 +67,34 @@ export default function MessageToTask({ message, anchorRect, onClose, onCreated 
             value={title}
             onChange={e => setTitle(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') handleSave(); if (e.key === 'Escape') onClose() }}
-            placeholder="Titolo del task…"
+            placeholder="Scrivi il titolo"
+          />
+        </div>
+
+        {/* Descrizione (dal messaggio, modificabile) */}
+        <div>
+          <label style={lbl}>Descrizione (dal messaggio)</label>
+          <textarea
+            value={description}
+            onChange={e => setDescription(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') onClose() }}
+            placeholder="Descrizione del task…"
+            style={{
+              width: '100%',
+              fontFamily: 'inherit',
+              fontSize: 12,
+              color: 'var(--text-primary)',
+              lineHeight: 1.45,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderLeft: '3px solid var(--accent)',
+              borderRadius: '0 6px 6px 0',
+              padding: '7px 10px',
+              minHeight: 60,
+              maxHeight: 140,
+              resize: 'vertical',
+              outline: 'none'
+            }}
           />
         </div>
 

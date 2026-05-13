@@ -300,7 +300,7 @@ body {
 .folder-member-item__avatar {
   width: 30px;
   height: 30px;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-muted);
   display: flex;
@@ -347,7 +347,7 @@ body {
 }
 .main-header__info { display: flex; align-items: center; gap: 12px; }
 .main-header__avatar {
-  width: 36px; height: 36px; border-radius: var(--radius-full);
+  width: 36px; height: 36px; border-radius: var(--radius-md); overflow: hidden;
   background: var(--accent-light); display: flex; align-items: center; justify-content: center;
   color: var(--accent); font-weight: 600;
 }
@@ -384,7 +384,7 @@ body {
 .folder-member-row__avatar {
   width: 44px;
   height: 44px;
-  border-radius: 50%;
+  border-radius: var(--radius-md);
   overflow: hidden;
   background: var(--bg-muted);
   display: flex;
@@ -452,6 +452,24 @@ body {
 }
 .message__time { font-size: 11px; color: var(--text-muted); margin-top: 2px; padding: 0 4px; }
 .message--me .message__time { text-align: right; }
+
+/* Riga mittente (gruppi): avatar + nome sopra la bolla */
+.message__sender-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+  padding-left: 2px;
+}
+.message__sender-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
 
 /* Riga bolla + azioni affiancate */
 .message__bubble-row {

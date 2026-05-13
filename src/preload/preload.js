@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('api', {
   selectFile: (options) => ipcRenderer.invoke('file:select', options),
   getFileInfo: (filePath) => ipcRenderer.invoke('file:getInfo', filePath),
   openFile: (filePath) => ipcRenderer.invoke('file:open', filePath),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   fileExists: (filePath) => ipcRenderer.invoke('file:exists', filePath),
   updateFolder: (id, data) => ipcRenderer.invoke('folders:update', id, data),
   deleteFolder: (id) => ipcRenderer.invoke('folders:delete', id),
@@ -46,6 +47,7 @@ contextBridge.exposeInMainWorld('api', {
   insertMessage: (data) => ipcRenderer.invoke('messages:insert', data),
   searchMessages: (accountId, query) => ipcRenderer.invoke('messages:search', accountId, query),
   resolvePhoneNumbers: (accountId, phoneNumbers) => ipcRenderer.invoke('messages:resolvePhoneNumbers', accountId, phoneNumbers),
+  resolveSenders: (accountId, waIds) => ipcRenderer.invoke('messages:resolveSenders', accountId, waIds),
 
   // Scheduled messages
   getScheduled: (accountId) => ipcRenderer.invoke('scheduled:getAll', accountId),

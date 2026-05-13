@@ -402,7 +402,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                   style={{ padding: '10px 16px', minHeight: 68 }}
                 >
                   <div className={`sidebar-item__avatar av ${avatarGradientClass(item.id)}`} style={{
-                    width: 48, height: 48, borderRadius: '50%',
+                    width: 48, height: 48, borderRadius: 'var(--radius-md)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                     fontSize: 14, fontWeight: 600,
                     overflow: 'hidden'
@@ -412,7 +412,7 @@ export default function Sidebar({ accountId, activeContact, activeFolder, active
                       profilePicUrl={item.profile_pic_url}
                       isGroup={item.is_group}
                       className="sidebar-item__avatar"
-                      style={{ width: 48, height: 48, borderRadius: '50%', overflow: 'hidden', background: 'var(--bg-hover)' }}
+                      style={{ width: 48, height: 48, borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--bg-hover)' }}
                     />
                   </div>
                   <div style={{ flex: 1, minWidth: 0, marginLeft: 12 }}>
