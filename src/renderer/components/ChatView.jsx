@@ -546,7 +546,7 @@ export default function ChatView({ contact, accountId, highlightMessageId, onHig
           const msgDate = formatDate(msg.timestamp)
           let showDateSep = false
           if (msgDate !== lastDate) { showDateSep = true; lastDate = msgDate }
-          const showSender = contact.is_group && !msg.is_from_me && (msg.sender_name || msg.sender_wa_id)
+          const showSender = !!(contact.is_group && !msg.is_from_me && (msg.sender_name || msg.sender_wa_id))
           const senderInfo = msg.sender_wa_id ? sendersMap[msg.sender_wa_id] : null
 
           return (
